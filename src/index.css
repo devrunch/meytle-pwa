@@ -1,0 +1,162 @@
+@import 'maplibre-gl/dist/maplibre-gl.css';
+@import url('https://fonts.googleapis.com/css2?family=Caudex:ital,wght@0,400;0,700;1,400;1,700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600;1,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-amber:        #C9920A;
+    --color-amber-light:  #FEF3D0;
+    --color-amber-dark:   #7A5200;
+
+    --gradient-gold:      linear-gradient(135deg, #F5C518 0%, #E8A000 40%, #C47808 100%);
+    --gradient-gold-h:    linear-gradient(90deg,  #F5C518 0%, #E09000 55%, #C47808 100%);
+    --gradient-gold-text: linear-gradient(135deg, #F0B429 0%, #D4920A 55%, #B8760A 100%);
+
+    --color-dark:         #1A1A1A;
+    --color-gray:         #666666;
+    --color-gray-light:   #F5F2EC;
+    --color-border:       #E8E4DC;
+    --color-bg:           #FAF9F7;
+    --color-white:        #FFFFFF;
+
+    --color-success:      #0F6E56;
+    --color-success-bg:   #E1F5EE;
+    --color-error:        #A32D2D;
+    --color-error-bg:     #FCEBEB;
+
+    --space-xs:   4px;
+    --space-sm:   8px;
+    --space-md:   12px;
+    --space-lg:   16px;
+    --space-xl:   24px;
+    --space-2xl:  32px;
+    --space-3xl:  48px;
+
+    --radius-sm:   6px;
+    --radius-md:   8px;
+    --radius-lg:   12px;
+    --radius-xl:   16px;
+    --radius-full: 9999px;
+  }
+
+  html {
+    font-family: 'Nunito', system-ui, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-dark);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Caudex', Georgia, serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-amber);
+    outline-offset: 2px;
+  }
+
+  /* Gold gradient text utility */
+  .text-gradient-gold {
+    background: var(--gradient-gold-text);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Gold gradient button utility */
+  .btn-gradient-gold {
+    background: var(--gradient-gold);
+    color: white;
+    border: none;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-gradient-gold::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0);
+    transition: background 0.15s;
+  }
+  .btn-gradient-gold:hover::after {
+    background: rgba(255,255,255,0.08);
+  }
+  .btn-gradient-gold:active::after {
+    background: rgba(0,0,0,0.08);
+  }
+
+  /* ── Custom scrollbar ─────────────────────────────────────────── */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #F5C518, #C47808);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #F0B429, #B8700A);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #C9920A transparent;
+  }
+
+  /* ── Marquee animation ────────────────────────────────────────── */
+  @keyframes marquee {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 28s linear infinite;
+  }
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+  .marquee-wrap {
+    overflow: hidden;
+    mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 8%,
+      black 92%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 8%,
+      black 92%,
+      transparent 100%
+    );
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}

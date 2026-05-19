@@ -1,0 +1,442 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  IconArrowLeft, IconArrowRight, IconCheck, IconPlus, IconMinus,
+  IconCamera, IconPhoto, IconId, IconMapPin, IconCoffee,
+  IconCalendarEvent, IconShieldCheck, IconUsers, IconHeart,
+} from '@tabler/icons-react'
+import { ProgressBar, ScheduleGrid, Button } from '../../components/ui'
+import MapView from '../../components/ui/MapView'
+import type { ExperienceType } from '../../types'
+import { createEmptySchedule } from '../../components/ui'
+import type { ScheduleValue } from '../../components/ui/ScheduleGrid'
+
+const TOTAL_STEPS = 6
+
+const STEP_META = [
+  { label: 'Services',     sub: 'What you offer',        icon: <IconCoffee size={16} stroke={1.5} /> },
+  { label: 'Availability', sub: 'Your schedule',         icon: <IconCalendarEvent size={16} stroke={1.5} /> },
+  { label: 'Service Area', sub: 'Where you operate',     icon: <IconMapPin size={16} stroke={1.5} /> },
+  { label: 'Photos',       sub: 'Showcase yourself',     icon: <IconPhoto size={16} stroke={1.5} /> },
+  { label: 'Selfie',       sub: 'Verify your face',      icon: <IconCamera size={16} stroke={1.5} /> },
+  { label: 'Identity',     sub: 'Government ID',         icon: <IconId size={16} stroke={1.5} /> },
+]
+
+const ALL_SERVICES: { type: ExperienceType; label: string; defaultPrice: number; icon: React.ReactNode }[] = [
+  { type: 'coffee',   label: 'Coffee Dates',    defaultPrice: 800,  icon: '☕' },
+  { type: 'dining',   label: 'Fine Dining',     defaultPrice: 1200, icon: '🍽️' },
+  { type: 'concert',  label: 'Concerts',        defaultPrice: 1100, icon: '🎵' },
+  { type: 'travel',   label: 'Travel',          defaultPrice: 1500, icon: '✈️' },
+  { type: 'fitness',  label: 'Fitness',         defaultPrice: 950,  icon: '🏃' },
+  { type: 'culture',  label: 'Cultural Events', defaultPrice: 1000, icon: '🎭' },
+  { type: 'nature',   label: 'Nature Walks',    defaultPrice: 700,  icon: '🌿' },
+  { type: 'movies',   label: 'Movies',          defaultPrice: 800,  icon: '🎬' },
+]
+
+interface SelectedService {
+  type: ExperienceType
+  label: string
+  pricePerHour: number
+}
+
+function StepServices({ selected, onChange }: { selected: SelectedService[]; onChange: (s: SelectedService[]) => void }) {
+  function toggle(svc: typeof ALL_SERVICES[0]) {
+    const exists = selected.find(s => s.type === svc.type)
+    if (exists) onChange(selected.filter(s => s.type !== svc.type))
+    else onChange([...selected, { type: svc.type, label: svc.label, pricePerHour: svc.defaultPrice }])
+  }
+
+  function updatePrice(type: ExperienceType, delta: number) {
+    onChange(selected.map(s => s.type === type ? { ...s, pricePerHour: Math.max(100, s.pricePerHour + delta) } : s))
+  }
+
+  return (
+    <div>
+      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">What do you offer?</h2>
+      <p className="text-[13px] text-[var(--color-gray)] mb-6">Select all services you'd like to provide and set your hourly rate.</p>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        {ALL_SERVICES.map(svc => {
+          const active = selected.find(s => s.type === svc.type)
+          return (
+            <div
+              key={svc.type}
+              className={`rounded-[14px] border-2 transition-all ${
+                active
+                  ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)]'
+                  : 'border-[var(--color-border)] bg-white hover:border-[var(--color-amber)]/40'
+              }`}
+            >
+              <button onClick={() => toggle(svc)} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                <span className="text-[20px] leading-none">{svc.icon}</span>
+                <span className={`flex-1 text-[14px] font-medium ${active ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-dark)]'}`}>
+                  {svc.label}
+                </span>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                  active ? 'bg-[var(--color-amber)] border-[var(--color-amber)]' : 'border-[var(--color-border)]'
+                }`}>
+                  {active && <IconCheck size={11} stroke={2.5} color="white" />}
+                </div>
+              </button>
+
+              {active && (
+                <div className="flex items-center justify-between px-4 pb-3 -mt-1">
+                  <span className="text-[11px] text-[var(--color-amber)] font-medium">Price per hour</span>
+                  <div className="flex items-center gap-2.5">
+                    <button onClick={() => updatePrice(svc.type, -100)} className="w-7 h-7 rounded-full bg-white border border-[var(--color-border)] flex items-center justify-center shadow-sm">
+                      <IconMinus size={11} stroke={2} className="text-[var(--color-dark)]" />
+                    </button>
+                    <span className="text-[14px] font-bold text-[var(--color-amber-dark)] w-16 text-center">₹{active.pricePerHour.toLocaleString()}</span>
+                    <button onClick={() => updatePrice(svc.type, 100)} className="w-7 h-7 rounded-full bg-white border border-[var(--color-border)] flex items-center justify-center shadow-sm">
+                      <IconPlus size={11} stroke={2} className="text-[var(--color-dark)]" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function StepAvailability({ schedule, onChange }: { schedule: ScheduleValue; onChange: (s: ScheduleValue) => void }) {
+  return (
+    <div>
+      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">When are you available?</h2>
+      <p className="text-[13px] text-[var(--color-gray)] mb-6">Set your weekly availability. You can update this anytime from your dashboard.</p>
+      <ScheduleGrid value={schedule} onChange={onChange} />
+    </div>
+  )
+}
+
+function StepServiceArea() {
+  return (
+    <div>
+      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Where do you operate?</h2>
+      <p className="text-[13px] text-[var(--color-gray)] mb-4">
+        Draw your service areas on the map. Use <strong>Draw</strong> for freeform or <strong>Circle</strong> for a radius.
+      </p>
+      <div className="rounded-[14px] overflow-hidden border border-[var(--color-border)]" style={{ height: 420 }}>
+        <MapView drawMode={true} height={420} className="w-full h-full" />
+      </div>
+      <div className="mt-3 flex items-center gap-2 bg-[var(--color-amber-light)] rounded-[10px] px-3 py-2.5">
+        <IconMapPin size={14} stroke={1.5} className="text-[var(--color-amber)] flex-none" />
+        <p className="text-[12px] text-[var(--color-amber-dark)]">You can add multiple areas and adjust them from your dashboard.</p>
+      </div>
+    </div>
+  )
+}
+
+function StepPhotos({ photos, onAdd }: { photos: string[]; onAdd: () => void }) {
+  return (
+    <div>
+      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Add your photos</h2>
+      <p className="text-[13px] text-[var(--color-gray)] mb-6">Upload at least 3 photos. Clear, well-lit photos get more bookings.</p>
+
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
+        {photos.map((url, i) => (
+          <div key={i} className="aspect-square rounded-[12px] overflow-hidden bg-[var(--color-gray-light)] relative group">
+            <img src={url} alt="" className="w-full h-full object-cover" />
+            {i === 0 && (
+              <div className="absolute bottom-1.5 left-1.5 bg-black/50 text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full">Main</div>
+            )}
+          </div>
+        ))}
+        <button
+          onClick={onAdd}
+          className="aspect-square rounded-[12px] border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center gap-2 hover:border-[var(--color-amber)] hover:bg-[var(--color-amber-light)]/40 transition-all"
+        >
+          <IconPhoto size={22} stroke={1.2} className="text-[var(--color-gray)]" />
+          <span className="text-[10px] text-[var(--color-gray)]">Add photo</span>
+        </button>
+      </div>
+
+      {photos.length < 3 ? (
+        <div className="flex items-center gap-2 bg-[var(--color-error-bg)] rounded-[10px] px-3 py-2.5">
+          <span className="text-[12px] text-[var(--color-error)]">Add at least {3 - photos.length} more photo{3 - photos.length > 1 ? 's' : ''} to continue.</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 bg-[var(--color-success-bg)] rounded-[10px] px-3 py-2.5">
+          <IconCheck size={13} stroke={2} className="text-[var(--color-success)]" />
+          <span className="text-[12px] text-[var(--color-success)] font-medium">Looking great! You can add more photos.</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StepSelfie({ captured, onCapture }: { captured: boolean; onCapture: () => void }) {
+  return (
+    <div className="max-w-[400px]">
+      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Take a selfie</h2>
+      <p className="text-[13px] text-[var(--color-gray)] mb-6">
+        We verify your profile photo is real. Make sure your face is clearly visible and well lit.
+      </p>
+
+      <div className="aspect-square rounded-[24px] bg-[var(--color-gray-light)] border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center overflow-hidden mb-5">
+        {captured ? (
+          <div className="w-full h-full bg-[var(--color-amber-light)] flex flex-col items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-[var(--color-amber)] flex items-center justify-center mb-4 shadow-lg">
+              <IconCheck size={36} stroke={2} color="white" />
+            </div>
+            <p className="text-[16px] font-semibold text-[var(--color-amber-dark)]">Selfie captured</p>
+            <p className="text-[12px] text-[var(--color-amber)] mt-1">Looks great!</p>
+          </div>
+        ) : (
+          <>
+            <IconCamera size={48} stroke={1} className="text-[var(--color-gray)] mb-4" />
+            <p className="text-[13px] text-[var(--color-gray)] text-center px-8">Position your face in the frame and take a clear selfie</p>
+          </>
+        )}
+      </div>
+
+      <button
+        onClick={onCapture}
+        className="w-full h-12 rounded-[12px] bg-[var(--color-dark)] text-white text-[14px] font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity mb-3"
+      >
+        <IconCamera size={18} stroke={1.5} />
+        {captured ? 'Retake Selfie' : 'Open Camera'}
+      </button>
+      <p className="text-[11px] text-[var(--color-gray)] text-center leading-relaxed">
+        Camera permission required. Your selfie is only used for verification and never shown publicly.
+      </p>
+    </div>
+  )
+}
+
+function StepID({ captured, onCapture }: { captured: boolean; onCapture: () => void }) {
+  return (
+    <div className="max-w-[480px]">
+      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Verify your identity</h2>
+      <p className="text-[13px] text-[var(--color-gray)] mb-6">
+        Upload a government-issued ID (Aadhaar, PAN, Passport, or Driver's License).
+      </p>
+
+      <div className="flex flex-col gap-3 mb-5">
+        {['Front of ID', 'Back of ID'].map((side, i) => (
+          <button
+            key={side}
+            onClick={onCapture}
+            className={`w-full h-32 rounded-[14px] border-2 flex flex-col items-center justify-center gap-2 transition-all ${
+              captured && i === 0
+                ? 'border-[var(--color-success)] bg-[var(--color-success-bg)]'
+                : 'border-dashed border-[var(--color-border)] bg-[var(--color-gray-light)] hover:border-[var(--color-amber)] hover:bg-[var(--color-amber-light)]/30'
+            }`}
+          >
+            {captured && i === 0 ? (
+              <>
+                <div className="w-12 h-12 rounded-full bg-[var(--color-success)] flex items-center justify-center">
+                  <IconCheck size={22} stroke={2} color="white" />
+                </div>
+                <span className="text-[13px] font-medium text-[var(--color-success)]">Front captured</span>
+              </>
+            ) : (
+              <>
+                <IconId size={32} stroke={1.2} className="text-[var(--color-gray)]" />
+                <span className="text-[12px] text-[var(--color-gray)]">{side} — tap to capture or upload</span>
+              </>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-[var(--color-amber-light)] rounded-[12px] px-4 py-3.5 flex gap-3">
+        <IconShieldCheck size={18} stroke={1.5} className="text-[var(--color-amber)] flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-[12px] font-semibold text-[var(--color-amber-dark)] mb-1">Why we need this</p>
+          <p className="text-[12px] text-[var(--color-amber)] leading-relaxed">
+            Identity verification builds trust and keeps the platform safe. Your ID is encrypted and only reviewed by our safety team.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function OnboardingWizard() {
+  const navigate = useNavigate()
+  const [step, setStep] = useState(1)
+
+  const [services, setServices] = useState<SelectedService[]>([])
+  const [schedule, setSchedule] = useState<ScheduleValue>(createEmptySchedule())
+  const [photos, setPhotos] = useState<string[]>([
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
+  ])
+  const [selfieCaptured, setSelfieCaptured] = useState(false)
+  const [idCaptured, setIdCaptured] = useState(false)
+
+  function canProceed() {
+    if (step === 1) return services.length > 0
+    if (step === 4) return photos.length >= 3
+    return true
+  }
+
+  function next() {
+    if (step < TOTAL_STEPS) setStep(s => s + 1)
+    else navigate('/app/companion/dashboard')
+  }
+
+  function back() {
+    if (step > 1) setStep(s => s - 1)
+    else navigate('/app')
+  }
+
+  return (
+    <div className="min-h-full bg-[var(--color-bg)]">
+
+      {/* ── Top bar — sticky within AppLayout's scroll ── */}
+      <div className="sticky top-0 z-20 bg-white border-b border-[var(--color-border)] h-[52px] flex items-center px-5 gap-4">
+        <button onClick={back} className="flex items-center gap-1.5 text-[13px] text-[var(--color-gray)] hover:text-[var(--color-dark)] transition-colors">
+          <IconArrowLeft size={15} stroke={1.5} />
+          Back
+        </button>
+        <div className="flex-1 hidden md:block">
+          <ProgressBar value={(step / TOTAL_STEPS) * 100} />
+        </div>
+        <span className="text-[12px] text-[var(--color-gray)] hidden md:block">
+          Step {step} of {TOTAL_STEPS}
+        </span>
+        <button onClick={() => navigate('/app')} className="text-[12px] text-[var(--color-gray)] hover:text-[var(--color-dark)] transition-colors ml-auto md:ml-0">
+          Save & exit
+        </button>
+      </div>
+
+      {/* ── Mobile progress ── */}
+      <div className="md:hidden bg-white border-b border-[var(--color-border)] px-4 pb-3 pt-2">
+        <ProgressBar value={(step / TOTAL_STEPS) * 100} />
+        <p className="text-[11px] text-[var(--color-gray)] mt-1.5">{STEP_META[step - 1].label} · Step {step} of {TOTAL_STEPS}</p>
+      </div>
+
+      {/* ── Body ── */}
+      <div className="flex">
+
+        {/* ── Left step navigator — sticky, desktop only ── */}
+        <aside className="hidden md:flex flex-col w-[260px] flex-shrink-0 bg-white border-r border-[var(--color-border)] py-8 px-5 sticky top-[52px] h-[calc(100vh-104px)] overflow-y-auto self-start">
+          {/* Companion becoming heading */}
+          <div className="mb-8 px-1">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded-[8px] bg-[var(--color-amber)] flex items-center justify-center">
+                <IconUsers size={14} stroke={1.5} color="white" />
+              </div>
+              <span className="text-[13px] font-semibold text-[var(--color-dark)]">Become a Companion</span>
+            </div>
+            <p className="text-[11px] text-[var(--color-gray)] pl-9">Complete all 6 steps to go live</p>
+          </div>
+
+          {/* Step list */}
+          <div className="flex flex-col gap-1 relative">
+            {/* Vertical connector line */}
+            <div className="absolute left-[15px] top-7 bottom-7 w-px bg-[var(--color-border)]" />
+
+            {STEP_META.map((s, i) => {
+              const n = i + 1
+              const done    = n < step
+              const current = n === step
+              return (
+                <div
+                  key={s.label}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-[10px] relative z-10 transition-colors ${
+                    current ? 'bg-[var(--color-amber-light)]' : done ? '' : ''
+                  }`}
+                >
+                  {/* Step dot */}
+                  <div className={`w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
+                    done    ? 'bg-[var(--color-amber)] border-[var(--color-amber)]' :
+                    current ? 'bg-[var(--color-amber)] border-[var(--color-amber)] ring-4 ring-[var(--color-amber-light)]' :
+                              'bg-white border-[var(--color-border)]'
+                  }`}>
+                    {done
+                      ? <IconCheck size={13} stroke={2.5} color="white" />
+                      : <span className={`text-[11px] font-bold ${current ? 'text-white' : 'text-[var(--color-gray)]'}`}>{n}</span>
+                    }
+                  </div>
+
+                  {/* Label */}
+                  <div>
+                    <p className={`text-[13px] font-medium leading-none ${
+                      current ? 'text-[var(--color-amber-dark)]' : done ? 'text-[var(--color-dark)]' : 'text-[var(--color-gray)]'
+                    }`}>{s.label}</p>
+                    <p className={`text-[10px] mt-0.5 ${current ? 'text-[var(--color-amber)]' : 'text-[var(--color-gray)]'}`}>{s.sub}</p>
+                  </div>
+
+                  {done && (
+                    <div className="ml-auto">
+                      <div className="w-4 h-4 rounded-full bg-[var(--color-success-bg)] flex items-center justify-center">
+                        <IconCheck size={9} stroke={2.5} className="text-[var(--color-success)]" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Bottom trust badge */}
+          <div className="mt-auto pt-6 px-1">
+            <div className="flex items-start gap-2 bg-[var(--color-gray-light)] rounded-[10px] p-3">
+              <IconHeart size={14} stroke={1.5} className="text-[var(--color-amber)] mt-0.5 flex-shrink-0" />
+              <p className="text-[11px] text-[var(--color-gray)] leading-relaxed">
+                Verified companions earn <span className="font-semibold text-[var(--color-dark)]">3× more</span> than unverified profiles.
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── Right: step content ── */}
+        <main className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 px-5 md:px-10 py-8 pb-24">
+            <div className="max-w-[680px]">
+              {step === 1 && <StepServices selected={services} onChange={setServices} />}
+              {step === 2 && <StepAvailability schedule={schedule} onChange={setSchedule} />}
+              {step === 3 && <StepServiceArea />}
+              {step === 4 && (
+                <StepPhotos
+                  photos={photos}
+                  onAdd={() => {
+                    const pool = [
+                      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+                      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
+                      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
+                    ]
+                    const pick = pool[photos.length - 1]
+                    if (pick) setPhotos(p => [...p, pick])
+                  }}
+                />
+              )}
+              {step === 5 && <StepSelfie captured={selfieCaptured} onCapture={() => setSelfieCaptured(true)} />}
+              {step === 6 && <StepID captured={idCaptured} onCapture={() => setIdCaptured(true)} />}
+            </div>
+          </div>
+
+          {/* ── Bottom CTA — sticky at bottom of scroll ── */}
+          <div className="sticky bottom-0 bg-white border-t border-[var(--color-border)] px-5 md:px-10 py-4 flex items-center justify-between gap-4">
+            <div>
+              {step === 1 && services.length === 0 && (
+                <p className="text-[12px] text-[var(--color-gray)]">Select at least one service to continue</p>
+              )}
+              {step === 4 && photos.length < 3 && (
+                <p className="text-[12px] text-[var(--color-gray)]">Need {3 - photos.length} more photo{3 - photos.length > 1 ? 's' : ''}</p>
+              )}
+            </div>
+            <Button
+              size="lg"
+              onClick={next}
+              disabled={!canProceed()}
+              className="min-w-[160px]"
+            >
+              <span className="flex items-center justify-center gap-2">
+                {step === TOTAL_STEPS ? (
+                  <><IconCheck size={16} stroke={2} /> Submit Application</>
+                ) : (
+                  <>Continue <IconArrowRight size={16} stroke={2} /></>
+                )}
+              </span>
+            </Button>
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
