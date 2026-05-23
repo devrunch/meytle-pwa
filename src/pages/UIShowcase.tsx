@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconSearch, IconMail, IconX } from '@tabler/icons-react'
+import { IconSearch, IconMail } from '@tabler/icons-react'
 import {
   Button, Input, Chip, Badge, Avatar, ProgressBar,
   CompanionCard, ExperienceCard, TopBar, BottomNav,

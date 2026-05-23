@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconCalendarEvent, IconClock, IconMapPin, IconChevronRight,
-  IconCircleCheck, IconLoader, IconX, IconWallet,
+  IconCircleCheck, IconLoader, IconWallet,
 } from '@tabler/icons-react'
 import { Avatar, Badge } from '../../components/ui'
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { IconPencil, IconCircle, IconTrash, IconMapPin, IconSearch, IconAdjustmentsHorizontal, IconHandStop } from '@tabler/icons-react'
+import { IconPencil, IconCircle, IconTrash, IconSearch, IconAdjustmentsHorizontal, IconHandStop } from '@tabler/icons-react'
 import { cn } from '../../lib/cn'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,8 +104,6 @@ export default function MapView({ height = 400, drawMode = false, className, ful
   }
 
   // Circle placement state
-  const [pendingCircle, setPendingCircle] = useState<{ center: LngLat; radiusKm: number } | null>(null)
-  const circleMarkerRef = useRef<maplibregl.Marker | null>(null)
 
   // ── Init map ────────────────────────────────────────────────────────────────
 

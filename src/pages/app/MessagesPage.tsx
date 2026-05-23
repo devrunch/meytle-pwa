@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconSend, IconSearch, IconMessages,
-  IconLock, IconCalendar, IconClock,
+  IconLock, IconCalendar,
 } from '@tabler/icons-react'
 import { Avatar } from '../../components/ui'
 

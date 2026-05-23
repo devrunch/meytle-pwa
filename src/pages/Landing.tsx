@@ -29,7 +29,6 @@ function DotGrid({ cols = 6, rows = 4, gap = 18, className = '' }: { cols?: numb
 }
 
 function Sparkle({ size = 24, className = '' }: { size?: number; className?: string }) {
-  const h = size / 2
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={`absolute pointer-events-none select-none ${className}`} aria-hidden>
       <path d="M12 2 L13.5 10.5 L22 12 L13.5 13.5 L12 22 L10.5 13.5 L2 12 L10.5 10.5 Z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
@@ -59,7 +58,6 @@ function WaveLine({ width = 200, className = '' }: { width?: number; className?:
 }
 
 function Diamond({ size = 32, className = '' }: { size?: number; className?: string }) {
-  const h = size / 2
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={`absolute pointer-events-none select-none ${className}`} aria-hidden>
       <rect x="4" y="4" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.2" transform="rotate(45 16 16)" />
