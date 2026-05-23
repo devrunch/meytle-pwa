@@ -1,26 +1,32 @@
 import { cn } from '../../lib/cn'
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
-type PeriodKey = 'morning' | 'afternoon' | 'evening' | 'night'
 
 const DAYS: Array<{ key: DayKey; short: string; label: string }> = [
-  { key: 'mon', short: 'Mo', label: 'Monday' },
-  { key: 'tue', short: 'Tu', label: 'Tuesday' },
-  { key: 'wed', short: 'We', label: 'Wednesday' },
-  { key: 'thu', short: 'Th', label: 'Thursday' },
-  { key: 'fri', short: 'Fr', label: 'Friday' },
-  { key: 'sat', short: 'Sa', label: 'Saturday' },
-  { key: 'sun', short: 'Su', label: 'Sunday' },
+  { key: 'mon', short: 'Mon', label: 'Monday' },
+  { key: 'tue', short: 'Tue', label: 'Tuesday' },
+  { key: 'wed', short: 'Wed', label: 'Wednesday' },
+  { key: 'thu', short: 'Thu', label: 'Thursday' },
+  { key: 'fri', short: 'Fri', label: 'Friday' },
+  { key: 'sat', short: 'Sat', label: 'Saturday' },
+  { key: 'sun', short: 'Sun', label: 'Sunday' },
 ]
 
-const PERIODS: Array<{ key: PeriodKey; label: string; time: string }> = [
-  { key: 'morning',   label: 'Morning',   time: '6 AM – 12 PM' },
-  { key: 'afternoon', label: 'Afternoon', time: '12 – 6 PM' },
-  { key: 'evening',   label: 'Evening',   time: '6 – 10 PM' },
-  { key: 'night',     label: 'Night',     time: '10 PM+' },
+const TIME_OPTIONS = [
+  '6:00 AM', '7:00 AM', '8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM',
+  '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM',
+  '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM', '10:00 PM', '11:00 PM',
 ]
 
-export type ScheduleValue = Partial<Record<DayKey, Set<PeriodKey>>>
+export type ScheduleValue = {
+  days: Set<DayKey>
+  from: string
+  to: string
+}
+
+export function createEmptySchedule(): ScheduleValue {
+  return { days: new Set(), from: '9:00 AM', to: '6:00 PM' }
+}
 
 interface ScheduleGridProps {
   value: ScheduleValue
@@ -28,127 +34,119 @@ interface ScheduleGridProps {
   className?: string
 }
 
-export function createEmptySchedule(): ScheduleValue {
-  return {}
-}
-
 export default function ScheduleGrid({ value, onChange, className }: ScheduleGridProps) {
-  function toggle(day: DayKey, period: PeriodKey) {
-    const next: ScheduleValue = {}
-    for (const d of Object.keys(value) as DayKey[]) {
-      next[d] = new Set(value[d])
-    }
-    if (!next[day]) next[day] = new Set()
-    const daySet = next[day]!
-    daySet.has(period) ? daySet.delete(period) : daySet.add(period)
-    if (daySet.size === 0) delete next[day]
-    onChange(next)
-  }
-
   function toggleDay(day: DayKey) {
-    const next: ScheduleValue = {}
-    for (const d of Object.keys(value) as DayKey[]) {
-      next[d] = new Set(value[d])
-    }
-    const allActive = PERIODS.every((p) => next[day]?.has(p.key))
-    if (allActive) {
-      delete next[day]
-    } else {
-      next[day] = new Set(PERIODS.map((p) => p.key))
-    }
-    onChange(next)
+    const next = new Set(value.days)
+    next.has(day) ? next.delete(day) : next.add(day)
+    onChange({ ...value, days: next })
   }
 
-  const totalSlots = Object.values(value).reduce((acc, s) => acc + (s?.size ?? 0), 0)
+  function setWeekdays() {
+    const weekdays: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri']
+    onChange({ ...value, days: new Set(weekdays) })
+  }
+
+  function setWeekend() {
+    onChange({ ...value, days: new Set(['sat', 'sun'] as DayKey[]) })
+  }
+
+  function setAllDays() {
+    onChange({ ...value, days: new Set(DAYS.map(d => d.key)) })
+  }
+
+  const count = value.days.size
 
   return (
-    <div className={cn('bg-white rounded-[var(--radius-xl)] border-[0.5px] border-[var(--color-border)]', className)}>
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-[var(--color-border)]">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-[14px] font-semibold text-[var(--color-dark)]">Weekly Availability</div>
-            <div className="text-[11px] text-[var(--color-gray)] mt-0.5">Tap a cell to toggle. Tap a day header to select all.</div>
-          </div>
-          {totalSlots > 0 && (
-            <div className="text-[11px] font-medium text-[var(--color-amber)] bg-[var(--color-amber-light)] px-2.5 py-1 rounded-full">
-              {totalSlots} slot{totalSlots !== 1 ? 's' : ''}
-            </div>
-          )}
-        </div>
-      </div>
+    <div className={cn('flex flex-col gap-5', className)}>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[420px]">
-          <thead>
-            <tr>
-              <th className="w-[80px]" />
-              {DAYS.map((d) => {
-                const allActive = PERIODS.every((p) => value[d.key]?.has(p.key))
-                return (
-                  <th key={d.key} className="pb-0 pt-0">
-                    <button
-                      type="button"
-                      onClick={() => toggleDay(d.key)}
-                      title={`Toggle all of ${d.label}`}
-                      className={cn(
-                        'w-full py-3 text-[11px] font-semibold transition-colors',
-                        allActive ? 'text-[var(--color-amber)]' : 'text-[var(--color-gray)]',
-                      )}
-                    >
-                      {d.short}
-                    </button>
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {PERIODS.map((period, pi) => (
-              <tr key={period.key} className={pi < PERIODS.length - 1 ? 'border-b border-[var(--color-border)]' : ''}>
-                {/* Period label */}
-                <td className="px-3 py-2.5">
-                  <div className="text-[11px] font-medium text-[var(--color-dark)] leading-tight">{period.label}</div>
-                  <div className="text-[9px] text-[var(--color-gray)] mt-0.5">{period.time}</div>
-                </td>
-
-                {DAYS.map((d) => {
-                  const active = !!value[d.key]?.has(period.key)
-                  return (
-                    <td key={d.key} className="px-1 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggle(d.key, period.key)}
-                        aria-label={`${active ? 'Remove' : 'Add'} ${period.label} on ${d.label}`}
-                        aria-pressed={active}
-                        className={cn(
-                          'w-7 h-7 rounded-[var(--radius-sm)] transition-all duration-100 mx-auto block border',
-                          active
-                            ? 'bg-[var(--color-amber)] border-[var(--color-amber)] shadow-sm'
-                            : 'bg-[var(--color-bg)] border-[var(--color-border)] hover:border-[var(--color-amber)]',
-                        )}
-                      >
-                        {active && (
-                          <svg viewBox="0 0 10 10" className="w-3 h-3 mx-auto" fill="none">
-                            <path d="M2 5l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </button>
-                    </td>
-                  )
-                })}
-              </tr>
+      {/* Day selector */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[14px] font-semibold text-[var(--color-dark)]">Available days</p>
+          <div className="flex gap-1.5">
+            {[
+              { label: 'Weekdays', action: setWeekdays },
+              { label: 'Weekend',  action: setWeekend  },
+              { label: 'Every day', action: setAllDays  },
+            ].map(p => (
+              <button
+                key={p.label}
+                onClick={p.action}
+                className="text-[10px] font-medium text-[var(--color-amber)] bg-[var(--color-amber-light)] px-2 py-0.5 rounded-full hover:opacity-80 transition-opacity"
+              >
+                {p.label}
+              </button>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          {DAYS.map(d => {
+            const active = value.days.has(d.key)
+            return (
+              <button
+                key={d.key}
+                onClick={() => toggleDay(d.key)}
+                className={cn(
+                  'flex-1 min-w-[calc(14%-8px)] py-2.5 rounded-[10px] text-[12px] font-semibold transition-all border-2',
+                  active
+                    ? 'bg-[var(--color-amber)] border-[var(--color-amber)] text-white shadow-sm'
+                    : 'bg-white border-[var(--color-border)] text-[var(--color-gray)] hover:border-[var(--color-amber)]/50'
+                )}
+              >
+                {d.short}
+              </button>
+            )
+          })}
+        </div>
+
+        {count > 0 && (
+          <p className="text-[11px] text-[var(--color-amber)] mt-2">
+            {count} day{count !== 1 ? 's' : ''} selected
+          </p>
+        )}
       </div>
 
-      {/* Reminder */}
-      <div className="mx-4 mb-4 mt-3 px-3 py-2.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-[var(--radius-md)]">
-        <div className="text-[11px] text-[#92400E] leading-relaxed">
-          Keep your availability up to date — companions with stale schedules get fewer bookings.
+      {/* Time range */}
+      <div>
+        <p className="text-[14px] font-semibold text-[var(--color-dark)] mb-3">Available hours</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[11px] font-medium text-[var(--color-gray)] block mb-1.5">From</label>
+            <select
+              value={value.from}
+              onChange={e => onChange({ ...value, from: e.target.value })}
+              className="w-full h-10 px-3 rounded-[10px] border border-[var(--color-border)] bg-white text-[13px] font-medium text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-amber)] transition-colors appearance-none cursor-pointer"
+            >
+              {TIME_OPTIONS.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-[var(--color-gray)] block mb-1.5">To</label>
+            <select
+              value={value.to}
+              onChange={e => onChange({ ...value, to: e.target.value })}
+              className="w-full h-10 px-3 rounded-[10px] border border-[var(--color-border)] bg-white text-[13px] font-medium text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-amber)] transition-colors appearance-none cursor-pointer"
+            >
+              {TIME_OPTIONS.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {value.days.size > 0 && (
+          <div className="mt-3 bg-[var(--color-amber-light)] rounded-[10px] px-3 py-2.5">
+            <p className="text-[12px] text-[var(--color-amber-dark)] font-medium">
+              You'll be available {value.from} – {value.to} on{' '}
+              {Array.from(value.days).map(d => DAYS.find(x => x.key === d)?.short).join(', ')}
+            </p>
+          </div>
+        )}
       </div>
+
     </div>
   )
 }

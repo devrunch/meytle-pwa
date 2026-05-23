@@ -75,7 +75,12 @@ export default function CompanionProfile() {
     )
   }
 
-  const activeService = companion.services.find(s => s.type === selectedService) ?? companion.services[0]
+  const activeServiceType = selectedService ?? companion.services[0]?.type
+
+  function bookNow() {
+    const params = activeServiceType ? `?service=${activeServiceType}` : ''
+    navigate(`/app/bookings/new/${companion!.id}${params}`)
+  }
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
@@ -210,7 +215,7 @@ export default function CompanionProfile() {
               {[
                 { icon: <IconStar size={18} stroke={1.5} className="text-[var(--color-amber)]" />, value: companion.rating.toString(), label: 'Rating' },
                 { icon: <IconCalendar size={18} stroke={1.5} className="text-[var(--color-amber)]" />, value: `${companion.reviewCount}`, label: 'Reviews' },
-                { icon: <IconClock size={18} stroke={1.5} className="text-[var(--color-amber)]" />, value: `₹${companion.priceFrom.toLocaleString()}`, label: 'From / hr' },
+                { icon: <IconClock size={18} stroke={1.5} className="text-[var(--color-amber)]" />, value: `₹${companion.priceFrom.toLocaleString()}`, label: '/ hr' },
               ].map(stat => (
                 <div key={stat.label} className="flex flex-col items-center gap-1 bg-white rounded-[12px] border border-[var(--color-border)] py-3 px-2">
                   {stat.icon}
@@ -228,25 +233,20 @@ export default function CompanionProfile() {
 
             {/* Services */}
             <div className="mb-6 pb-6 border-b border-[var(--color-border)]">
-              <h2 className="text-[16px] font-semibold text-[var(--color-dark)] mb-3">Services & Pricing</h2>
+              <div className="flex items-baseline gap-2 mb-3">
+                <h2 className="text-[16px] font-semibold text-[var(--color-dark)]">Services</h2>
+                <span className="text-[13px] text-[var(--color-gray)]">· ₹{companion.priceFrom.toLocaleString()} / hr for all</span>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {companion.services.map(service => (
                   <div
                     key={service.type}
-                    className="flex items-center justify-between bg-white rounded-[12px] border border-[var(--color-border)] px-4 py-3.5 hover:border-[var(--color-amber)] transition-colors cursor-pointer"
+                    className="flex items-center gap-3 bg-white rounded-[12px] border border-[var(--color-border)] px-4 py-3.5 hover:border-[var(--color-amber)] transition-colors cursor-pointer"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-[10px] bg-[var(--color-amber-light)] flex items-center justify-center">
-                        <IconClock size={16} stroke={1.5} className="text-[var(--color-amber)]" />
-                      </div>
-                      <div>
-                        <p className="text-[13px] font-semibold text-[var(--color-dark)]">{service.label}</p>
-                        <p className="text-[11px] text-[var(--color-gray)]">per hour</p>
-                      </div>
+                    <div className="w-9 h-9 rounded-[10px] bg-[var(--color-amber-light)] flex items-center justify-center flex-shrink-0">
+                      <IconClock size={16} stroke={1.5} className="text-[var(--color-amber)]" />
                     </div>
-                    <p className="text-[15px] font-bold text-[var(--color-amber-dark)]">
-                      ₹{service.pricePerHour.toLocaleString()}
-                    </p>
+                    <p className="text-[13px] font-semibold text-[var(--color-dark)]">{service.label}</p>
                   </div>
                 ))}
               </div>
@@ -319,29 +319,24 @@ export default function CompanionProfile() {
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-gray)] mb-3">Select a service</p>
                   <div className="flex flex-col gap-2">
                     {companion.services.map(service => {
-                      const isActive = (selectedService ?? companion.services[0].type) === service.type
+                      const isActive = activeServiceType === service.type
                       return (
                         <button
                           key={service.type}
                           onClick={() => setSelectedService(service.type)}
-                          className={`flex items-center justify-between rounded-[10px] px-3 py-2.5 text-left transition-colors border ${
+                          className={`flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors border ${
                             isActive
                               ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)]'
                               : 'border-[var(--color-border)] hover:border-[var(--color-amber)]'
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isActive ? 'border-[var(--color-amber)] bg-[var(--color-amber)]' : 'border-[var(--color-border)]'
-                            }`}>
-                              {isActive && <IconCheck size={9} stroke={3} color="white" />}
-                            </div>
-                            <span className={`text-[13px] font-medium ${isActive ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-dark)]'}`}>
-                              {service.label}
-                            </span>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                            isActive ? 'border-[var(--color-amber)] bg-[var(--color-amber)]' : 'border-[var(--color-border)]'
+                          }`}>
+                            {isActive && <IconCheck size={9} stroke={3} color="white" />}
                           </div>
-                          <span className={`text-[12px] font-semibold ${isActive ? 'text-[var(--color-amber)]' : 'text-[var(--color-gray)]'}`}>
-                            ₹{service.pricePerHour.toLocaleString()}/hr
+                          <span className={`text-[13px] font-medium ${isActive ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-dark)]'}`}>
+                            {service.label}
                           </span>
                         </button>
                       )
@@ -352,7 +347,7 @@ export default function CompanionProfile() {
                 {/* CTA */}
                 <div className="px-6 py-5">
                   <button
-                    onClick={() => navigate(`/app/bookings/new/${companion.id}`)}
+                    onClick={bookNow}
                     className="btn-gradient-gold w-full h-12 rounded-[12px] text-white text-[14px] font-semibold shadow-[0_2px_12px_rgba(232,160,0,0.45)] hover:opacity-90 transition-opacity mb-3"
                   >
                     Book Now
@@ -390,14 +385,14 @@ export default function CompanionProfile() {
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--color-border)] px-4 py-3 z-30">
         <div className="flex items-center gap-3">
           <div>
-            <p className="text-[10px] text-[var(--color-gray)]">Starting from</p>
+            <p className="text-[10px] text-[var(--color-gray)]">Hourly rate</p>
             <p className="text-[17px] font-bold text-[var(--color-dark)]">
               ₹{companion.priceFrom.toLocaleString()}
               <span className="text-[12px] font-normal text-[var(--color-gray)]">/hr</span>
             </p>
           </div>
           <button
-            onClick={() => navigate(`/app/bookings/new/${companion.id}`)}
+            onClick={bookNow}
             className="btn-gradient-gold flex-1 h-11 rounded-[12px] text-white text-[14px] font-semibold"
           >
             Book Now

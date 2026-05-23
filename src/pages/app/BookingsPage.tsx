@@ -210,7 +210,7 @@ export default function BookingsPage() {
         ) : (
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
             {current.map(booking => (
-              <BookingCard key={booking.id} booking={booking} onClick={() => {}} />
+              <BookingCard key={booking.id} booking={booking} onClick={() => navigate(`/app/bookings/${booking.id}`)} />
             ))}
           </div>
         )}

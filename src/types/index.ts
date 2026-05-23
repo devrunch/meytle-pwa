@@ -13,7 +13,6 @@ export type ExperienceType =
 export interface Service {
   type: ExperienceType
   label: string
-  pricePerHour: number
 }
 
 export interface Companion {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconTrendingUp, IconCalendarEvent, IconStar, IconCurrencyRupee,
@@ -6,74 +6,7 @@ import {
   IconEdit, IconUsers, IconShieldCheck, IconArrowUpRight,
 } from '@tabler/icons-react'
 import { Badge } from '../../components/ui'
-
-type RequestStatus = 'pending' | 'confirmed' | 'declined' | 'completed'
-
-interface BookingRequest {
-  id: string
-  userName: string
-  userInitials: string
-  service: string
-  date: string
-  time: string
-  duration: number
-  location: string
-  total: number
-  status: RequestStatus
-  note?: string
-}
-
-const MOCK_REQUESTS: BookingRequest[] = [
-  {
-    id: 'r1',
-    userName: 'Amit S.',
-    userInitials: 'AS',
-    service: 'Coffee Date',
-    date: 'May 17, 2026',
-    time: '10:00 AM',
-    duration: 2,
-    location: 'Bandra West',
-    total: 1600,
-    status: 'pending',
-    note: 'Looking forward to a relaxed morning chat!',
-  },
-  {
-    id: 'r2',
-    userName: 'Ritu K.',
-    userInitials: 'RK',
-    service: 'Cultural Event',
-    date: 'May 19, 2026',
-    time: '3:00 PM',
-    duration: 3,
-    location: 'Bandra West',
-    total: 3000,
-    status: 'pending',
-  },
-  {
-    id: 'r3',
-    userName: 'Suresh M.',
-    userInitials: 'SM',
-    service: 'Coffee Date',
-    date: 'May 13, 2026',
-    time: '11:00 AM',
-    duration: 1,
-    location: 'Juhu',
-    total: 800,
-    status: 'confirmed',
-  },
-  {
-    id: 'r4',
-    userName: 'Divya P.',
-    userInitials: 'DP',
-    service: 'Concert',
-    date: 'May 10, 2026',
-    time: '6:00 PM',
-    duration: 4,
-    location: 'Lower Parel',
-    total: 4800,
-    status: 'completed',
-  },
-]
+import { MOCK_REQUESTS, type BookingRequest, type RequestStatus } from '../../data/mockBookings'
 
 const STATS = [
   {
@@ -124,72 +57,240 @@ const CHART_DATA = [
   { day: 'Sun', val: 74 },
 ]
 
+// ── Mobile Tinder-style swipeable card (pending only) ───────────────────────
+
+function SwipeCard({
+  request,
+  stackSize,
+  onAccept,
+  onDecline,
+  onView,
+}: {
+  request: BookingRequest
+  stackSize: number
+  onAccept: () => void
+  onDecline: () => void
+  onView: () => void
+}) {
+  const [dragX, setDragX] = useState(0)
+  const [exiting, setExiting] = useState<'left' | 'right' | null>(null)
+  const dragging = useRef(false)
+  const startX = useRef(0)
+
+  function touchStart(e: React.TouchEvent) {
+    startX.current = e.touches[0].clientX
+    dragging.current = true
+  }
+  function touchMove(e: React.TouchEvent) {
+    if (!dragging.current) return
+    setDragX(e.touches[0].clientX - startX.current)
+  }
+  function touchEnd() {
+    dragging.current = false
+    if (dragX > 80) triggerAccept()
+    else if (dragX < -80) triggerDecline()
+    else setDragX(0)
+  }
+
+  function triggerAccept() {
+    setExiting('right')
+    setTimeout(() => { onAccept(); setDragX(0); setExiting(null) }, 280)
+  }
+  function triggerDecline() {
+    setExiting('left')
+    setTimeout(() => { onDecline(); setDragX(0); setExiting(null) }, 280)
+  }
+
+  const dx = exiting === 'right' ? 420 : exiting === 'left' ? -420 : dragX
+  const rotate = dx * 0.055
+  const acceptAlpha = Math.max(0, Math.min(dx / 70, 1))
+  const declineAlpha = Math.max(0, Math.min(-dx / 70, 1))
+  const isMoving = dragging.current || !!exiting
+
+  return (
+    <div className="relative w-full" style={{ minHeight: 340 }}>
+      {/* Stack shadow cards */}
+      {stackSize > 2 && (
+        <div className="absolute inset-x-3 bottom-0 h-full rounded-[22px] bg-[var(--color-border)] scale-[0.93] origin-bottom" style={{ zIndex: 0 }} />
+      )}
+      {stackSize > 1 && (
+        <div className="absolute inset-x-1.5 bottom-0 h-full rounded-[22px] bg-white border border-[var(--color-border)] scale-[0.96] origin-bottom shadow-sm" style={{ zIndex: 1 }} />
+      )}
+
+      {/* Main swipeable card */}
+      <div
+        className="relative w-full rounded-[22px] bg-white border border-[var(--color-border)] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.1)] select-none"
+        style={{
+          zIndex: 2,
+          transform: `translateX(${dx}px) rotate(${rotate}deg)`,
+          transition: isMoving ? (exiting ? 'transform 0.28s ease' : 'none') : 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)',
+          transformOrigin: '50% 90%',
+        }}
+        onTouchStart={touchStart}
+        onTouchMove={touchMove}
+        onTouchEnd={touchEnd}
+      >
+        {/* Accept stamp overlay */}
+        <div
+          className="absolute inset-0 z-10 flex items-start justify-start p-5 pointer-events-none rounded-[22px]"
+          style={{ opacity: acceptAlpha, background: 'rgba(34,197,94,0.12)' }}
+        >
+          <div className="border-4 border-[#22c55e] rounded-[10px] px-3 py-1.5 -rotate-12">
+            <span className="text-[#22c55e] font-black text-[18px] tracking-widest">ACCEPT</span>
+          </div>
+        </div>
+        {/* Decline stamp overlay */}
+        <div
+          className="absolute inset-0 z-10 flex items-start justify-end p-5 pointer-events-none rounded-[22px]"
+          style={{ opacity: declineAlpha, background: 'rgba(239,68,68,0.12)' }}
+        >
+          <div className="border-4 border-[#ef4444] rounded-[10px] px-3 py-1.5 rotate-12">
+            <span className="text-[#ef4444] font-black text-[18px] tracking-widest">DECLINE</span>
+          </div>
+        </div>
+
+        {/* Amber header */}
+        <div className="h-[88px] relative" style={{ background: 'linear-gradient(135deg, #FFF3CC 0%, #FFE066 100%)' }}>
+          <div className="absolute -bottom-8 left-4 w-[64px] h-[64px] rounded-full bg-white shadow-[0_4px_16px_rgba(232,160,0,0.25)] border-4 border-white flex items-center justify-center">
+            <span className="text-[20px] font-black text-[var(--color-amber-dark)]">{request.userInitials}</span>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="pt-12 px-4 pb-3">
+          <div className="flex items-start justify-between mb-1">
+            <p className="text-[20px] font-bold text-[var(--color-dark)] leading-tight">{request.userName}</p>
+            <div className="text-right flex-shrink-0 ml-2">
+              <p className="text-[19px] font-bold text-[var(--color-dark)]">₹{request.total.toLocaleString()}</p>
+              <p className="text-[10px] text-[var(--color-gray)]">{request.duration}h session</p>
+            </div>
+          </div>
+          <span className="inline-block px-2.5 py-0.5 rounded-full bg-[var(--color-amber-light)] text-[11px] font-semibold text-[var(--color-amber-dark)] mb-3">
+            {request.service}
+          </span>
+
+          <div className="flex flex-col gap-1.5 mb-3">
+            <div className="flex items-center gap-2 text-[13px] text-[var(--color-gray)]">
+              <IconCalendarEvent size={13} stroke={1.5} className="text-[var(--color-amber)] flex-none" />
+              <span>{request.date} · {request.time}–{request.endTime}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[13px] text-[var(--color-gray)]">
+              <IconMapPin size={13} stroke={1.5} className="text-[var(--color-amber)] flex-none" />
+              <span className="truncate">{request.location}</span>
+            </div>
+          </div>
+
+          {request.note && (
+            <div className="bg-[var(--color-gray-light)] rounded-[10px] px-3 py-2 mb-3">
+              <p className="text-[12px] text-[var(--color-gray)] italic">"{request.note}"</p>
+            </div>
+          )}
+
+          <button onClick={onView} className="w-full text-center text-[12px] text-[var(--color-amber)] font-medium py-1 mb-1">
+            View full details →
+          </button>
+
+          {/* Big accept / decline */}
+          <div className="flex gap-3 pt-2 border-t border-[var(--color-border)]">
+            <button
+              onClick={triggerDecline}
+              className="flex-1 h-13 rounded-[14px] border-2 border-red-200 bg-red-50 text-red-500 text-[14px] font-bold flex items-center justify-center gap-2"
+              style={{ height: 52 }}
+            >
+              <IconX size={18} stroke={2.5} /> Decline
+            </button>
+            <button
+              onClick={triggerAccept}
+              className="flex-1 h-13 rounded-[14px] bg-[var(--color-amber)] text-white text-[14px] font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(232,160,0,0.4)]"
+              style={{ height: 52 }}
+            >
+              <IconCheck size={18} stroke={2.5} /> Accept
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Desktop / non-pending list card ─────────────────────────────────────────
+
+const STATUS_VARIANT: Record<RequestStatus, 'warning' | 'success' | 'default' | 'error'> = {
+  pending: 'warning', confirmed: 'success', completed: 'default', declined: 'error',
+}
+
 function RequestCard({
   request,
   onAccept,
   onDecline,
+  onView,
 }: {
   request: BookingRequest
   onAccept: () => void
   onDecline: () => void
+  onView: () => void
 }) {
   const isPending = request.status === 'pending'
-  const statusVariant =
-    request.status === 'pending'   ? 'warning' :
-    request.status === 'confirmed' ? 'success' :
-    request.status === 'completed' ? 'default' : 'error'
 
   return (
-    <div className="bg-white rounded-[14px] border border-[var(--color-border)] p-4 hover:border-[var(--color-amber)] hover:shadow-[0_4px_16px_rgba(201,146,10,0.08)] transition-all">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-[var(--color-amber-light)] flex items-center justify-center flex-shrink-0">
-            <span className="text-[11px] font-bold text-[var(--color-amber-dark)]">{request.userInitials}</span>
+    <div
+      onClick={onView}
+      className="group bg-white rounded-[16px] border border-[var(--color-border)] overflow-hidden hover:border-[var(--color-amber)] hover:shadow-[0_4px_20px_rgba(201,146,10,0.1)] transition-all cursor-pointer"
+    >
+      {/* Amber accent header */}
+      <div className="h-1.5 w-full" style={{ background: isPending ? 'var(--gradient-gold)' : 'var(--color-gray-light)' }} />
+
+      <div className="p-4">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-11 h-11 rounded-full bg-[var(--color-amber-light)] flex items-center justify-center flex-shrink-0 border-2 border-white shadow-sm">
+            <span className="text-[13px] font-black text-[var(--color-amber-dark)]">{request.userInitials}</span>
           </div>
-          <div>
-            <p className="text-[14px] font-semibold text-[var(--color-dark)]">{request.userName}</p>
-            <p className="text-[12px] text-[var(--color-amber)] font-medium">{request.service}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-bold text-[var(--color-dark)] leading-tight">{request.userName}</p>
+            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full bg-[var(--color-amber-light)] text-[10px] font-semibold text-[var(--color-amber-dark)]">
+              {request.service}
+            </span>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <Badge variant={STATUS_VARIANT[request.status]} label={request.status.charAt(0).toUpperCase() + request.status.slice(1)} />
+            <p className="text-[14px] font-bold text-[var(--color-dark)]">₹{request.total.toLocaleString()}</p>
           </div>
         </div>
-        <Badge variant={statusVariant} label={request.status.charAt(0).toUpperCase() + request.status.slice(1)} />
-      </div>
 
-      <div className="grid grid-cols-2 gap-1.5 mb-3">
-        <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-gray)]">
-          <IconCalendarEvent size={12} stroke={1.5} className="text-[var(--color-amber)]" />
-          <span>{request.date}</span>
+        <div className="flex flex-col gap-1.5 mb-3">
+          <div className="flex items-center gap-2 text-[12px] text-[var(--color-gray)]">
+            <IconCalendarEvent size={12} stroke={1.5} className="text-[var(--color-amber)] flex-none" />
+            <span>{request.date} · {request.time}–{request.endTime}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[12px] text-[var(--color-gray)]">
+            <IconClock size={12} stroke={1.5} className="text-[var(--color-amber)] flex-none" />
+            <span>{request.duration} hour{request.duration > 1 ? 's' : ''}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[12px] text-[var(--color-gray)]">
+            <IconMapPin size={12} stroke={1.5} className="text-[var(--color-amber)] flex-none" />
+            <span className="truncate">{request.location}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-gray)]">
-          <IconClock size={12} stroke={1.5} className="text-[var(--color-amber)]" />
-          <span>{request.time} · {request.duration}h</span>
-        </div>
-        <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-gray)] col-span-2">
-          <IconMapPin size={12} stroke={1.5} className="text-[var(--color-amber)]" />
-          <span>{request.location}</span>
-        </div>
-      </div>
 
-      {request.note && (
-        <div className="bg-[var(--color-gray-light)] rounded-[8px] px-3 py-2 mb-3">
-          <p className="text-[11px] text-[var(--color-gray)] italic">"{request.note}"</p>
-        </div>
-      )}
+        {request.note && (
+          <div className="bg-[var(--color-gray-light)] rounded-[8px] px-3 py-2 mb-3">
+            <p className="text-[11px] text-[var(--color-gray)] italic">"{request.note}"</p>
+          </div>
+        )}
 
-      <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)]">
-        <p className="text-[14px] font-bold text-[var(--color-dark)]">₹{request.total.toLocaleString()}</p>
         {isPending && (
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2 pt-3 border-t border-[var(--color-border)]" onClick={e => e.stopPropagation()}>
             <button
               onClick={onDecline}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-[var(--color-border)] text-[12px] font-medium text-[var(--color-gray)] hover:border-[var(--color-error)] hover:text-[var(--color-error)] transition-colors"
+              className="flex-1 h-9 rounded-[10px] border border-red-200 bg-red-50 text-red-500 text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:bg-red-100 transition-colors"
             >
-              <IconX size={12} stroke={2} /> Decline
+              <IconX size={13} stroke={2.5} /> Decline
             </button>
             <button
               onClick={onAccept}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--color-amber)] text-[12px] font-medium text-white hover:opacity-90 transition-opacity"
+              className="flex-1 h-9 rounded-[10px] bg-[var(--color-amber)] text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity shadow-[0_2px_8px_rgba(232,160,0,0.35)]"
             >
-              <IconCheck size={12} stroke={2} /> Accept
+              <IconCheck size={13} stroke={2.5} /> Accept
             </button>
           </div>
         )}
@@ -258,9 +359,9 @@ export default function CompanionDashboard() {
             {/* Quick actions — white ghost buttons on desktop */}
             <div className="hidden md:flex items-center gap-2 flex-shrink-0">
               {[
-                { label: 'Edit Profile',  icon: <IconEdit size={13} stroke={1.5} />,          onClick: () => {} },
-                { label: 'Availability',  icon: <IconCalendarEvent size={13} stroke={1.5} />, onClick: () => navigate('/app/companion/onboarding') },
-                { label: 'Service Area',  icon: <IconMapPin size={13} stroke={1.5} />,        onClick: () => {} },
+                { label: 'Edit Profile',  icon: <IconEdit size={13} stroke={1.5} />,          onClick: () => navigate('/app/companion/account') },
+                { label: 'Availability',  icon: <IconCalendarEvent size={13} stroke={1.5} />, onClick: () => navigate('/app/companion/account') },
+                { label: 'Payouts',       icon: <IconCurrencyRupee size={13} stroke={1.5} />, onClick: () => navigate('/app/companion/account#payouts') },
               ].map(a => (
                 <button
                   key={a.label}
@@ -275,14 +376,14 @@ export default function CompanionDashboard() {
         </div>
       </div>
 
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10 py-4">
 
         {/* Mobile quick actions */}
         <div className="flex gap-2 my-3 md:hidden">
           {[
-            { label: 'Edit Profile',  icon: <IconEdit size={13} stroke={1.5} />,          onClick: () => {} },
-            { label: 'Availability',  icon: <IconCalendarEvent size={13} stroke={1.5} />, onClick: () => {} },
-            { label: 'Service Area',  icon: <IconMapPin size={13} stroke={1.5} />,        onClick: () => {} },
+            { label: 'Edit Profile',  icon: <IconEdit size={13} stroke={1.5} />,          onClick: () => navigate('/app/companion/account') },
+            { label: 'Availability',  icon: <IconCalendarEvent size={13} stroke={1.5} />, onClick: () => navigate('/app/companion/account') },
+            { label: 'Payouts',       icon: <IconCurrencyRupee size={13} stroke={1.5} />, onClick: () => navigate('/app/companion/account') },
           ].map(a => (
             <button
               key={a.label}
@@ -430,16 +531,37 @@ export default function CompanionDashboard() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid md:grid-cols-1 xl:grid-cols-2 gap-3">
-                    {tabList.map(request => (
-                      <RequestCard
-                        key={request.id}
-                        request={request}
-                        onAccept={() => accept(request.id)}
-                        onDecline={() => decline(request.id)}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    {/* Mobile pending — Tinder stack (hidden on md+) */}
+                    {tab === 'requests' && (
+                      <div className="md:hidden flex flex-col items-center gap-3">
+                        <p className="text-[12px] text-[var(--color-gray)]">
+                          {tabList.length} pending request{tabList.length !== 1 ? 's' : ''} · swipe to respond
+                        </p>
+                        <SwipeCard
+                          key={tabList[0].id}
+                          request={tabList[0]}
+                          stackSize={tabList.length}
+                          onAccept={() => accept(tabList[0].id)}
+                          onDecline={() => decline(tabList[0].id)}
+                          onView={() => navigate(`/app/companion/bookings/${tabList[0].id}`)}
+                        />
+                      </div>
+                    )}
+
+                    {/* Desktop grid (always) + mobile non-pending */}
+                    <div className={`grid md:grid-cols-1 xl:grid-cols-2 gap-3 ${tab === 'requests' ? 'hidden md:grid' : ''}`}>
+                      {tabList.map(request => (
+                        <RequestCard
+                          key={request.id}
+                          request={request}
+                          onAccept={() => accept(request.id)}
+                          onDecline={() => decline(request.id)}
+                          onView={() => navigate(`/app/companion/bookings/${request.id}`)}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             </div>

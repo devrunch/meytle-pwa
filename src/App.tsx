@@ -16,9 +16,12 @@ import ProfilePage from './pages/app/ProfilePage'
 
 import CompanionProfile from './pages/companion/CompanionProfile'
 import CompanionDashboard from './pages/companion/CompanionDashboard'
+import BookingDetail from './pages/companion/BookingDetail'
 import OnboardingWizard from './pages/companion/OnboardingWizard'
+import CompanionAccount from './pages/companion/CompanionAccount'
 
 import BookingFlow from './pages/booking/BookingFlow'
+import BookingDetailPage from './pages/app/BookingDetailPage'
 
 export default function App() {
   return (
@@ -42,10 +45,13 @@ export default function App() {
             <Route path="messages" element={<MessagesPage />} />
             <Route path="messages/:conversationId" element={<MessagesPage />} />
             <Route path="bookings" element={<BookingsPage />} />
+            <Route path="bookings/:bookingId" element={<BookingDetailPage />} />
             <Route path="bookings/new/:companionId" element={<BookingFlow />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="companion/dashboard" element={<CompanionDashboard />} />
+            <Route path="companion/bookings/:bookingId" element={<BookingDetail />} />
             <Route path="companion/onboarding" element={<OnboardingWizard />} />
+            <Route path="companion/account" element={<CompanionAccount />} />
           </Route>
 
           {/* Dev */}

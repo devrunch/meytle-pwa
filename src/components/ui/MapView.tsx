@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import { IconPencil, IconCircle, IconTrash, IconMapPin, IconSearch, IconAdjustmentsHorizontal, IconHandStop } from '@tabler/icons-react'
 import { cn } from '../../lib/cn'
 
@@ -68,9 +69,10 @@ interface MapViewProps {
   height?: number
   drawMode?: boolean
   className?: string
+  fullscreen?: boolean
 }
 
-export default function MapView({ height = 400, drawMode = false, className }: MapViewProps) {
+export default function MapView({ height = 400, drawMode = false, className, fullscreen = false }: MapViewProps) {
   const containerRef   = useRef<HTMLDivElement>(null)
   const mapRef         = useRef<maplibregl.Map | null>(null)
   const markersRef     = useRef<maplibregl.Marker[]>([])
@@ -81,6 +83,25 @@ export default function MapView({ height = 400, drawMode = false, className }: M
   const [areas, setAreas]         = useState<Area[]>([])
   const [liveCoords, setLiveCoords] = useState<LngLat[]>([])
   const [selectedPin, setSelectedPin] = useState<typeof COMPANION_PINS[number] | null>(null)
+  const [search, setSearch]       = useState('')
+  const [searching, setSearching] = useState(false)
+
+  async function geocodeSearch(query: string) {
+    if (!query.trim() || !mapRef.current) return
+    setSearching(true)
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      )
+      const data = await res.json()
+      if (data[0]) {
+        mapRef.current.flyTo({ center: [parseFloat(data[0].lon), parseFloat(data[0].lat)], zoom: 14, duration: 800 })
+      }
+    } finally {
+      setSearching(false)
+    }
+  }
 
   // Circle placement state
   const [pendingCircle, setPendingCircle] = useState<{ center: LngLat; radiusKm: number } | null>(null)
@@ -277,18 +298,36 @@ export default function MapView({ height = 400, drawMode = false, className }: M
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className={cn('relative rounded-[var(--radius-xl)] overflow-hidden border border-[var(--color-border)]', className)} style={{ height }}>
+    <div
+      className={cn(!fullscreen && 'rounded-[var(--radius-xl)] border border-[var(--color-border)]', 'relative overflow-hidden', className)}
+      style={fullscreen ? { width: '100%', height: '100%' } : { height }}
+    >
 
       {/* Map container */}
-      <div ref={containerRef} className="absolute inset-0" />
+      <div ref={containerRef} className="absolute inset-0 h-full" />
 
       {/* ── Browse mode UI ── */}
       {!drawMode && (
         <>
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
-            <div className="flex items-center gap-2 bg-white rounded-full px-3 py-2 shadow-md border border-[var(--color-border)] text-[12px] text-[var(--color-gray)] w-[200px]">
-              <IconSearch size={13} stroke={1.5} color="var(--color-gray)" />
-              Search this area
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto w-[260px]">
+            <div className="relative">
+              <button
+                onClick={() => geocodeSearch(search)}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2"
+              >
+                {searching
+                  ? <span className="w-3 h-3 border-2 border-[var(--color-amber)] border-t-transparent rounded-full animate-spin block" />
+                  : <IconSearch size={13} stroke={1.5} className="text-[var(--color-gray)]" />
+                }
+              </button>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && geocodeSearch(search)}
+                placeholder="Search area..."
+                className="w-full h-9 pl-8 pr-3 rounded-full bg-white shadow-md border border-[var(--color-border)] text-[12px] text-[var(--color-dark)] placeholder:text-[var(--color-gray)] focus:outline-none focus:border-[var(--color-amber)] transition-colors"
+              />
             </div>
           </div>
 
