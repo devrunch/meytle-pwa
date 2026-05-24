@@ -24,7 +24,8 @@ Tapping a card opens the booking detail.
 | Status | Extra UI |
 |--------|----------|
 | `pending` | "Waiting for companion to confirm" · Cancel button |
-| `confirmed` | Countdown to meeting time · Message button (when within chat window) · **No cancel button** |
+| `confirmed` | Countdown to meeting time · Message button (when within chat window) · OTP shown in last 15 mins · **No cancel button** |
+| `in_progress` | Session live · Timer showing elapsed time · "End Session" button (companion only) |
 | `completed` | "Leave a Review" button (if no review submitted yet) |
 | `cancelled` | Who initiated the cancellation · Refund status |
 
@@ -79,7 +80,8 @@ Tapping a card opens the booking detail.
 | Status | Extra UI |
 |--------|----------|
 | `pending` | Accept / Decline buttons |
-| `confirmed` | Countdown to meeting time · Message button (when within chat window) · "Mark as Completed" button |
+| `confirmed` | Countdown · Message button · OTP input (to verify user, starts session) |
+| `in_progress` | Session live · Timer · "End Session" button |
 | `completed` | Earnings amount · Payout date (if available) |
 | `cancelled` | Who initiated · Whether refund was issued |
 

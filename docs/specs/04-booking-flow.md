@@ -91,9 +91,12 @@ Platform fee on session:  Deducted at payout
 | Status | Meaning | Who can change it |
 |--------|---------|------------------|
 | `pending` | Submitted, waiting for companion | Companion (accept/decline), system (auto-expire 24h) |
-| `confirmed` | Companion accepted, payment held | User (cancel), companion (cancel, mark complete) |
-| `completed` | Session done, payment released | System only |
-| `cancelled` | Cancelled by either party or auto-expired | — |
+| `confirmed` | Accepted, payment held, OTP generated | System (→ in_progress on OTP verify) |
+| `in_progress` | OTP verified, session is live, timer running | System (auto-complete), companion (end early) |
+| `completed` | Session ended, payment released | — |
+| `cancelled` | Admin-initiated only | Admin |
+
+> Full OTP + session + no-show flow → [13-session-flow.md](./13-session-flow.md)
 
 ---
 

@@ -18,3 +18,4 @@
 | [10-companion-account.md](./10-companion-account.md) | Profile edit, availability, payouts | 🟡 | 🔲 |
 | [11-payments.md](./11-payments.md) | Gateway, hold, release, refunds | 🟡 | 🔲 |
 | [12-notifications.md](./12-notifications.md) | In-app notification triggers | 🔲 | 🔲 |
+| [13-session-flow.md](./13-session-flow.md) | OTP start, auto-complete, no-show, admin split | 🔲 | 🔲 |
