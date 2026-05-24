@@ -1,6 +1,62 @@
-# Meytle PWA — Dev Notes
+# Meytle — Dev Notes
 
 > Last updated: 2026-05-24
+
+---
+
+## 0. Project Structure
+
+```
+meytle-pwa/                  ← repo root
+├── frontend/                ← Vite + React PWA
+│   ├── src/
+│   ├── public/
+│   ├── vite.config.ts
+│   └── package.json
+│
+├── backend/                 ← NestJS + TypeORM + PostgreSQL
+│   ├── src/
+│   │   ├── auth/            ← JWT auth (fill after spec)
+│   │   ├── users/           ← user entity + CRUD
+│   │   ├── companions/      ← companion profiles
+│   │   ├── bookings/        ← booking flow
+│   │   ├── messages/        ← in-booking chat
+│   │   ├── reviews/         ← post-booking reviews
+│   │   └── common/          ← guards, decorators, filters
+│   ├── .env.example
+│   └── package.json
+│
+├── shared/
+│   └── types/index.ts       ← types imported by both frontend + backend
+│
+├── package.json             ← npm workspaces root
+└── NOTES.md
+```
+
+### Dev commands (from repo root)
+```bash
+npm run dev:frontend     # Vite dev server → localhost:5173
+npm run dev:backend      # NestJS watch → localhost:3000/api
+```
+
+### Backend stack
+- **NestJS 11** — framework
+- **TypeORM** — ORM (entities auto-sync in dev, migrations in prod)
+- **PostgreSQL** — primary database
+- **@nestjs/jwt + passport-jwt** — auth (fill after spec)
+- **class-validator / class-transformer** — DTO validation (global pipe on)
+
+### Adding a new backend module (pattern)
+```
+src/feature/
+  feature.module.ts
+  feature.controller.ts   ← routes
+  feature.service.ts      ← business logic
+  feature.entity.ts       ← TypeORM entity
+  dto/
+    create-feature.dto.ts
+    update-feature.dto.ts
+```
 
 ---
 
