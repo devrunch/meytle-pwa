@@ -60,7 +60,7 @@ export class MessagesService {
   private async assertAccess(bookingId: string, userId: string): Promise<Booking> {
     const booking = await this.bookings.findOne({
       where: { id: bookingId },
-      relations: ['companion'],
+      relations: { companion: true },
     });
     if (!booking) throw new NotFoundException('Booking not found');
 

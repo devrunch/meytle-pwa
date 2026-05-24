@@ -55,7 +55,7 @@ export class BookingsService {
   async findForUser(userId: string): Promise<Booking[]> {
     return this.bookings.find({
       where: { userId },
-      relations: ['companion', 'companion.user'],
+      relations: { companion: { user: true } },
       order: { bookedStart: 'DESC' },
     });
   }
@@ -66,7 +66,7 @@ export class BookingsService {
 
     return this.bookings.find({
       where: { companionId: companion.id },
-      relations: ['user'],
+      relations: { user: true },
       order: { bookedStart: 'DESC' },
     });
   }
@@ -74,7 +74,7 @@ export class BookingsService {
   async findById(id: string, requesterId: string): Promise<Booking> {
     const booking = await this.bookings.findOne({
       where: { id },
-      relations: ['user', 'companion', 'companion.user'],
+      relations: { user: true, companion: { user: true } },
     });
     if (!booking) throw new NotFoundException('Booking not found');
     this.assertParticipant(booking, requesterId);
@@ -144,7 +144,7 @@ export class BookingsService {
 
     const booking = await this.bookings.findOne({
       where: { id: bookingId },
-      select: ['id', 'companionId', 'status', 'otpCode', 'bookedStart'],
+      select: { id: true, companionId: true, status: true, otpCode: true, bookedStart: true },
     });
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.companionId !== companion.id) throw new ForbiddenException();

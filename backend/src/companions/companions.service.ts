@@ -65,7 +65,7 @@ export class CompanionsService {
   async getProfile(companionId: string): Promise<CompanionProfile> {
     const profile = await this.profiles.findOne({
       where: { id: companionId },
-      relations: ['user'],
+      relations: { user: true },
     });
     if (!profile) throw new NotFoundException('Companion not found');
     return profile;

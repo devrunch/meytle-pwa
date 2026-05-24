@@ -25,7 +25,7 @@ export class ReviewsService {
   async create(reviewerId: string, dto: CreateReviewDto): Promise<Review> {
     const booking = await this.bookings.findOne({
       where: { id: dto.bookingId },
-      relations: ['companion'],
+      relations: { companion: true },
     });
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.userId !== reviewerId) throw new ForbiddenException('Only the user can leave a review');
