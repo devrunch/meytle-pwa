@@ -22,6 +22,13 @@ Not a general inbox — every conversation belongs to exactly one booking.
 
 ---
 
+## Who can send the first message ✅ Confirmed
+
+**Either party can initiate** — the user does not need to wait for the companion to go first.
+The only gating is the access window below.
+
+---
+
 ## Access rules
 
 A message thread is **readable and writable** only when ALL conditions are true:
@@ -42,14 +49,34 @@ Chat closes:  May 25,  7:00 PM  (2h after end)
 
 **Access states shown in UI:**
 
-| State | When | UI |
-|-------|------|----|
-| Too early | Before window | "Chat opens at 12:00 PM — 3 hours before your booking" |
-| Open | During window | Full chat interface |
-| Session ended | After window | Read-only, "This session has ended" banner |
-| Booking not confirmed | Status is pending/cancelled | "Chat is only available for confirmed bookings" |
+| State | When | UI shown |
+|-------|------|----------|
+| Not confirmed | Booking still `pending` | "Chat is available once the booking is confirmed" |
+| Too early | Before 3h window | "Chat opens at 12:00 PM — 3 hours before your booking" with a countdown |
+| Open | Inside window | Full chat interface — either party can send first |
+| Session ended | After 2h grace | Read-only thread + "This session has ended" banner |
 
-**Access is enforced server-side** — the WebSocket gateway checks conditions on every message emit. The UI state is a convenience only.
+**Access is enforced server-side** — the WebSocket gateway rejects emits outside the window. The UI state is informational only.
+
+---
+
+## If booking is cancelled after confirmation ✅ Confirmed
+
+**Bookings cannot be cancelled by either party once confirmed.**
+Cancellation after confirmation requires contacting **admin / customer support**.
+
+- If support cancels the booking: thread immediately becomes **read-only**
+- Messages are retained and visible to both parties in read-only mode
+- No new messages can be sent once a booking moves to `cancelled` regardless of how it got there
+
+---
+
+## Phone number sharing ✅ Confirmed — Not allowed
+
+- Phone numbers (and any sequence matching a phone pattern) are **blocked** server-side before delivery
+- Pattern to block: any string of 10+ consecutive digits, or common formats like `+91XXXXXXXXXX`
+- Blocked message is not delivered — sender sees: "Sharing contact details is not allowed"
+- Repeat violations flagged for moderation
 
 ---
 
@@ -57,41 +84,32 @@ Chat closes:  May 25,  7:00 PM  (2h after end)
 
 - Plain text only — no attachments, images, or links in v1
 - Maximum 500 characters per message
+- Phone number patterns are filtered (see above)
 - Sending an empty message is blocked client and server side
 
 ---
 
 ## Message list (`/app/messages`)
 
-- Shows all message threads the user is part of where the access window is open **or** closed within the last 24 hours
+- Shows all threads where the access window is open **or** closed within the last 24 hours
 - Each row: other party's photo, name, booking date, last message preview (40 chars), unread badge
 - Sorted by most recent message first
-- Threads outside the 24h post-close window are archived and not shown
+- Threads beyond 24h post-close are archived (not shown, but accessible via booking detail)
 
 ---
 
 ## Thread view (`/app/messages/:bookingId`)
 
 - Messages from self on the right, other party on the left
-- Timestamp shown per message (time only; full date if message is from a previous day)
+- Timestamp per message (time only; full date if from a previous day)
 - Auto-scrolls to bottom on open and on new message received
-- Input bar disabled with a label when outside the access window
-- Typing indicator: ⚠️ nice to have, not required for v1
+- Input bar shows lock state label when outside access window
+- Typing indicator: not in v1
 
 ---
 
 ## Unread count
 
 - Bottom nav badge = total unread messages across all open threads
-- Cleared when user opens that thread (marks all as read)
-- Updated in real time via the Socket.IO connection
-
----
-
-## Open conditions to confirm
-
-| # | Question | Default if not answered |
-|---|----------|------------------------|
-| Q9 | Can the user send the first message, or only the companion? | Either party can initiate |
-| Q10 | What happens to messages if booking is cancelled post-confirmation? | Thread becomes read-only immediately |
-| Q11 | Can companions share phone numbers in chat? | Not blocked in v1, flag for moderation in v2 |
+- Cleared when user opens that thread
+- Updated in real time via Socket.IO

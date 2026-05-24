@@ -24,13 +24,28 @@ Tapping a card opens the booking detail.
 | Status | Extra UI |
 |--------|----------|
 | `pending` | "Waiting for companion to confirm" · Cancel button |
-| `confirmed` | Countdown to meeting time · Cancel button (if within cancellation window) · Message button |
-| `completed` | "Leave a Review" button (if no review yet) |
-| `cancelled` | Who cancelled · Refund status |
+| `confirmed` | Countdown to meeting time · Message button (when within chat window) · **No cancel button** |
+| `completed` | "Leave a Review" button (if no review submitted yet) |
+| `cancelled` | Who initiated the cancellation · Refund status |
 
-**Cancel rules:**
-- Cancellation policy (hours and % refund) ⚠️ TBD — see Q3 in `00-overview`
-- Cancel button is hidden once the cancellation window has passed
+---
+
+## Cancellation rules ✅ Confirmed
+
+### Before confirmation (status: `pending`)
+- **User can cancel freely** — full refund, no questions asked
+- Cancel button shown on booking detail while status is `pending`
+
+### After confirmation (status: `confirmed`) ✅ Confirmed
+- **Neither the user nor the companion can cancel through the app**
+- No cancel button shown on confirmed bookings
+- To cancel a confirmed booking, the user must contact **customer support**
+- Support team handles the cancellation manually and applies refund policy:
+  - More than 3h before start → 50% refund
+  - Less than 3h before start → no refund
+  - Companion-initiated → 100% refund to user
+
+> **Why:** Prevents last-minute abuse and protects both parties once commitment is made.
 
 ---
 
@@ -47,29 +62,30 @@ Tapping a card opens the booking detail.
 - Date, time, duration
 - Meeting spot
 - What the companion earns (total minus platform fee)
-- Any note from the user (for custom requests)
+- Note from the user (for custom requests)
 
 **Rules:**
-- Companion must respond within 24 hours or the request auto-expires and the user is refunded
-- On accept → booking moves to `confirmed`, user notified, payment authorised
-- On decline → booking moves to `cancelled`, user notified, full refund
+- Companion must respond within **24 hours** or the request auto-expires
+- On auto-expire: booking → `cancelled`, user gets a full refund, companion is notified
+- On accept → booking → `confirmed`, payment authorised, user notified
+- On decline → booking → `cancelled`, full refund to user, user notified
 
 ---
 
 ## Companion — Booking Detail (`/app/companion/bookings/:id`)
-
-Same layout as user's booking detail, from the companion's perspective.
 
 **Conditional content by status:**
 
 | Status | Extra UI |
 |--------|----------|
 | `pending` | Accept / Decline buttons |
-| `confirmed` | Countdown to meeting time · Message button · "Mark as Completed" button |
-| `completed` | Earnings shown, payout date if known |
-| `cancelled` | Who cancelled |
+| `confirmed` | Countdown to meeting time · Message button (when within chat window) · "Mark as Completed" button |
+| `completed` | Earnings amount · Payout date (if available) |
+| `cancelled` | Who initiated · Whether refund was issued |
 
-**"Mark as Completed":**
-- Only available after the booking's end time has passed
-- Triggers payment release to companion (minus platform fee)
+### "Mark as Completed" button
+- Only shown after the booking's scheduled end time has passed
+- Companion taps it to confirm the session happened
+- Triggers Stripe payment capture → platform fee deducted → payout to companion
 - Unlocks "Leave a Review" for the user
+- If companion does not mark as completed within 24h of end time: **auto-completed by the system**

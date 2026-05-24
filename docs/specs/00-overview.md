@@ -62,11 +62,13 @@ New cities added as separate deployments with their own companion pool.
 
 ---
 
-## Open questions remaining
+## All questions resolved ✅
 
-| # | Question | Affects |
-|---|----------|---------|
-| Q9 | Can users initiate a message first, or only after the companion sends one? | `06-messaging` |
-| Q10 | What happens to chat messages if a booking is cancelled after confirmation? | `06-messaging` |
-| Q11 | Should companions be allowed to share phone numbers in chat? (safety) | `06-messaging` |
-| Q12 | Veriff as fallback if Stripe Identity not available in India — confirm? | `08-companion-onboarding` |
+| # | Question | Decision |
+|---|----------|----------|
+| Q9 | Who sends the first message? | Either party — user can initiate within the 3h window |
+| Q10 | Chat after confirmed booking is cancelled? | Thread becomes read-only; confirmed bookings can only be cancelled by support |
+| Q11 | Phone numbers in chat? | Blocked server-side — pattern-filtered before delivery |
+| Q12 | Veriff as Stripe Identity fallback? | Yes — and Veriff falls back to admin manual review (24h SLA) |
+
+**No open questions remaining. Specs are ready to build against.**
