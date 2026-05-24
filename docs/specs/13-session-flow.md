@@ -102,6 +102,8 @@ User unlocked     → can leave review
   - System auto-completes
   - Logs as `autoCompleted: true`
 
+> **v2 analytics:** Flag companions who repeatedly end sessions significantly earlier than booked duration — useful signal for quality monitoring. Out of scope for v1.
+
 ---
 
 ## No-show handling

@@ -1,0 +1,253 @@
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DataSource, LessThan, MoreThan } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Booking, BookingStatus, CancelledByParty } from './booking.entity';
+import { CompanionProfile } from '../companions/companion-profile.entity';
+import { User, UserRole } from '../users/user.entity';
+import { CreateBookingDto } from './dto/create-booking.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { CancelBookingDto } from './dto/cancel-booking.dto';
+
+@Injectable()
+export class BookingsService {
+  constructor(
+    @InjectRepository(Booking) private readonly bookings: Repository<Booking>,
+    @InjectRepository(CompanionProfile) private readonly companions: Repository<CompanionProfile>,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  async create(userId: string, dto: CreateBookingDto): Promise<Booking> {
+    const companion = await this.companions.findOne({ where: { id: dto.companionId } });
+    if (!companion) throw new NotFoundException('Companion not found');
+
+    const bookedStart = new Date(dto.bookedStart);
+    const bookedEnd = new Date(bookedStart.getTime() + dto.bookedDurationMinutes * 60_000);
+    const [lng, lat] = dto.meetingSpot;
+
+    const booking = this.bookings.create({
+      userId,
+      companionId: dto.companionId,
+      serviceType: dto.serviceType,
+      bookedStart,
+      bookedEnd,
+      bookedDurationMinutes: dto.bookedDurationMinutes,
+      meetingSpot: `SRID=4326;POINT(${lng} ${lat})`,
+      meetingSpotText: dto.meetingSpotText,
+      isCustomRequest: dto.isCustomRequest ?? false,
+      customNote: dto.customNote,
+      amountPaisa: companion.hourlyRatePaisa * (dto.bookedDurationMinutes / 60),
+      status: BookingStatus.PENDING,
+    });
+
+    // TODO: create Stripe Payment Intent here and set stripePaymentIntentId
+    // booking.stripePaymentIntentId = await this.stripe.createPaymentIntent(...)
+
+    return this.bookings.save(booking);
+  }
+
+  async findForUser(userId: string): Promise<Booking[]> {
+    return this.bookings.find({
+      where: { userId },
+      relations: ['companion', 'companion.user'],
+      order: { bookedStart: 'DESC' },
+    });
+  }
+
+  async findForCompanion(userId: string): Promise<Booking[]> {
+    const companion = await this.companions.findOne({ where: { userId } });
+    if (!companion) throw new NotFoundException('No companion profile found');
+
+    return this.bookings.find({
+      where: { companionId: companion.id },
+      relations: ['user'],
+      order: { bookedStart: 'DESC' },
+    });
+  }
+
+  async findById(id: string, requesterId: string): Promise<Booking> {
+    const booking = await this.bookings.findOne({
+      where: { id },
+      relations: ['user', 'companion', 'companion.user'],
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    this.assertParticipant(booking, requesterId);
+    return booking;
+  }
+
+  async acceptByCompanion(bookingId: string, userId: string): Promise<Booking> {
+    const booking = await this.getOwnedByCompanion(bookingId, userId);
+    if (booking.status !== BookingStatus.PENDING) {
+      throw new BadRequestException('Only pending bookings can be accepted');
+    }
+
+    const otp = this.generateOtp();
+    await this.bookings.update(bookingId, {
+      status: BookingStatus.CONFIRMED,
+      otpCode: otp,
+    });
+
+    // TODO: trigger payment authorisation via Stripe
+    // TODO: send notification to user
+
+    return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
+  }
+
+  async declineByCompanion(bookingId: string, userId: string): Promise<Booking> {
+    const booking = await this.getOwnedByCompanion(bookingId, userId);
+    if (booking.status !== BookingStatus.PENDING) {
+      throw new BadRequestException('Only pending bookings can be declined');
+    }
+
+    await this.bookings.update(bookingId, {
+      status: BookingStatus.CANCELLED,
+      cancelledBy: CancelledByParty.COMPANION,
+      cancelledAt: new Date(),
+      cancellationReason: 'Declined by companion',
+    });
+
+    // TODO: full refund via Stripe
+    // TODO: notify user
+
+    return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
+  }
+
+  async cancelByUser(bookingId: string, userId: string, dto: CancelBookingDto): Promise<Booking> {
+    const booking = await this.bookings.findOne({ where: { id: bookingId } });
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (booking.userId !== userId) throw new ForbiddenException();
+    if (booking.status !== BookingStatus.PENDING) {
+      throw new BadRequestException('Cannot cancel — contact support for confirmed bookings');
+    }
+
+    await this.bookings.update(bookingId, {
+      status: BookingStatus.CANCELLED,
+      cancelledBy: CancelledByParty.USER,
+      cancelledAt: new Date(),
+      cancellationReason: dto.reason,
+    });
+
+    // TODO: refund based on timing (>3h before = 50%, <3h = 0%)
+
+    return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
+  }
+
+  async verifyOtp(bookingId: string, companionUserId: string, dto: VerifyOtpDto): Promise<Booking> {
+    const companion = await this.companions.findOne({ where: { userId: companionUserId } });
+    if (!companion) throw new ForbiddenException();
+
+    const booking = await this.bookings.findOne({
+      where: { id: bookingId },
+      select: ['id', 'companionId', 'status', 'otpCode', 'bookedStart'],
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (booking.companionId !== companion.id) throw new ForbiddenException();
+    if (booking.status !== BookingStatus.CONFIRMED) {
+      throw new BadRequestException('Booking is not in confirmed state');
+    }
+
+    // OTP should only be verifiable within a reasonable window of the start time
+    const now = new Date();
+    const startTime = new Date(booking.bookedStart);
+    const diffMs = now.getTime() - startTime.getTime();
+    if (diffMs < -15 * 60_000 || diffMs > 30 * 60_000) {
+      throw new BadRequestException('OTP can only be verified near the booking start time');
+    }
+
+    if (booking.otpCode !== dto.otpCode) {
+      // Log mismatch attempt for fraud detection (TODO: persist attempt log)
+      throw new BadRequestException('Invalid OTP');
+    }
+
+    const actualStart = new Date();
+    await this.bookings.update(bookingId, {
+      status: BookingStatus.IN_PROGRESS,
+      actualStart,
+      otpVerifiedAt: actualStart,
+    });
+
+    return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
+  }
+
+  async endSession(bookingId: string, companionUserId: string): Promise<Booking> {
+    const booking = await this.getOwnedByCompanion(bookingId, companionUserId);
+    if (booking.status !== BookingStatus.IN_PROGRESS) {
+      throw new BadRequestException('Session is not in progress');
+    }
+
+    await this.bookings.update(bookingId, {
+      status: BookingStatus.COMPLETED,
+      actualEnd: new Date(),
+    });
+
+    // TODO: capture Stripe payment, deduct platform fee, transfer to companion
+    // TODO: notify user — review unlocked
+
+    return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
+  }
+
+  // Runs every minute — auto-expires pending bookings older than 24h
+  @Cron(CronExpression.EVERY_MINUTE)
+  async autoExpirePending(): Promise<void> {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60_000);
+    const expired = await this.bookings.find({
+      where: { status: BookingStatus.PENDING, createdAt: LessThan(cutoff) },
+    });
+
+    for (const b of expired) {
+      await this.bookings.update(b.id, {
+        status: BookingStatus.CANCELLED,
+        cancelledBy: CancelledByParty.SYSTEM,
+        cancelledAt: new Date(),
+        cancellationReason: 'Auto-expired: companion did not respond within 24 hours',
+      });
+      // TODO: full refund + notify both parties
+    }
+  }
+
+  // Runs every minute — auto-completes in_progress bookings past booked end + 2h grace
+  @Cron(CronExpression.EVERY_MINUTE)
+  async autoCompleteExpired(): Promise<void> {
+    const graceCutoff = new Date(Date.now() - 2 * 60 * 60_000);
+    const overdue = await this.bookings.find({
+      where: { status: BookingStatus.IN_PROGRESS, bookedEnd: LessThan(graceCutoff) },
+    });
+
+    for (const b of overdue) {
+      await this.bookings.update(b.id, {
+        status: BookingStatus.COMPLETED,
+        actualEnd: new Date(b.bookedEnd.getTime() + 2 * 60 * 60_000),
+        autoCompleted: true,
+      });
+      // TODO: capture payment + payout
+    }
+  }
+
+  // --- helpers ---
+
+  private generateOtp(): string {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+
+  private async getOwnedByCompanion(bookingId: string, companionUserId: string): Promise<Booking> {
+    const companion = await this.companions.findOne({ where: { userId: companionUserId } });
+    if (!companion) throw new ForbiddenException('Not a companion');
+
+    const booking = await this.bookings.findOne({ where: { id: bookingId } });
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (booking.companionId !== companion.id) throw new ForbiddenException();
+    return booking;
+  }
+
+  private assertParticipant(booking: Booking, userId: string): void {
+    const isUser = booking.userId === userId;
+    const isCompanion = booking.companion?.userId === userId;
+    if (!isUser && !isCompanion) throw new ForbiddenException();
+  }
+}
