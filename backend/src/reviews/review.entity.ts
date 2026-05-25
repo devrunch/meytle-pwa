@@ -40,7 +40,7 @@ export class Review {
   @Column({ name: 'star_rating', type: 'smallint' })
   starRating: number;
 
-  @Column({ type: 'text', nullable: true, length: 300 })
+  @Column({ type: 'text', nullable: true })
   comment: string;
 
   @Column({ name: 'is_removed', default: false })
