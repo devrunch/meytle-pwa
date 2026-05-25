@@ -1,16 +1,17 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconArrowRight, IconCheck, IconPlus, IconMinus,
   IconCamera, IconPhoto, IconId, IconMapPin, IconCoffee,
   IconCalendarEvent, IconShieldCheck, IconUsers, IconHeart,
-  IconCurrencyRupee,
+  IconCurrencyRupee, IconAlertCircle,
 } from '@tabler/icons-react'
 import { ProgressBar, ScheduleGrid, Button } from '../../components/ui'
 import MapView from '../../components/ui/MapView'
 import type { ExperienceType } from '../../types'
 import { createEmptySchedule } from '../../components/ui'
 import type { ScheduleValue } from '../../components/ui/ScheduleGrid'
+import { api } from '../../lib/api'
 
 const TOTAL_STEPS = 7
 
@@ -195,13 +196,21 @@ function StepRate({ rate, onChange }: { rate: number; onChange: (r: number) => v
 
 // ── Step 3: Interests / About You ─────────────────────────────────────────────
 function StepInterests({
+  displayName,
+  dateOfBirth,
   selected,
   tags,
+  onDisplayName,
+  onDateOfBirth,
   onSelected,
   onTags,
 }: {
+  displayName: string
+  dateOfBirth: string
   selected: string[]
   tags: string[]
+  onDisplayName: (v: string) => void
+  onDateOfBirth: (v: string) => void
   onSelected: (s: string[]) => void
   onTags: (t: string[]) => void
 }) {
@@ -218,10 +227,41 @@ function StepInterests({
 
   return (
     <div>
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">What are you into?</h2>
+      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">About you</h2>
       <p className="text-[13px] text-[var(--color-gray)] mb-6">
-        Pick your interests and personality traits — this helps clients find the right companion for them.
+        Tell clients who you are. Pick your interests and personality traits too.
       </p>
+
+      {/* Display name + DOB */}
+      <div className="grid sm:grid-cols-2 gap-4 mb-7">
+        <div>
+          <label className="block text-[12px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-1.5">
+            Display name <span className="text-[var(--color-error)]">*</span>
+          </label>
+          <input
+            type="text"
+            value={displayName}
+            onChange={e => onDisplayName(e.target.value)}
+            placeholder="e.g. Aanya K."
+            maxLength={40}
+            className="w-full h-11 px-3 rounded-[10px] border border-[var(--color-border)] text-[13px] text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-amber)] transition-colors"
+          />
+          <p className="text-[11px] text-[var(--color-gray)] mt-1">Shown on your public profile</p>
+        </div>
+        <div>
+          <label className="block text-[12px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-1.5">
+            Date of birth <span className="text-[var(--color-error)]">*</span>
+          </label>
+          <input
+            type="date"
+            value={dateOfBirth}
+            onChange={e => onDateOfBirth(e.target.value)}
+            max={new Date(Date.now() - 18 * 365.25 * 24 * 3600 * 1000).toISOString().slice(0, 10)}
+            className="w-full h-11 px-3 rounded-[10px] border border-[var(--color-border)] text-[13px] text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-amber)] transition-colors"
+          />
+          <p className="text-[11px] text-[var(--color-gray)] mt-1">Must be 18+. Not shown publicly.</p>
+        </div>
+      </div>
 
       {/* Interest groups */}
       <div className="flex flex-col gap-5 mb-6">
@@ -296,28 +336,63 @@ function StepAvailability({ schedule, onChange }: { schedule: ScheduleValue; onC
 }
 
 // ── Step 5: Photos ────────────────────────────────────────────────────────────
-function StepPhotos({ photos, onAdd }: { photos: string[]; onAdd: () => void }) {
+function StepPhotos({
+  photos,
+  uploading,
+  onRemove,
+  onFilesSelected,
+}: {
+  photos: string[]
+  uploading: boolean
+  onRemove: (i: number) => void
+  onFilesSelected: (files: FileList) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
   return (
     <div>
       <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Add your photos</h2>
       <p className="text-[13px] text-[var(--color-gray)] mb-6">Upload at least 3 photos. Clear, well-lit photos get more bookings.</p>
 
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/heic"
+        multiple
+        className="hidden"
+        onChange={e => { if (e.target.files?.length) onFilesSelected(e.target.files); e.target.value = '' }}
+      />
+
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
         {photos.map((url, i) => (
-          <div key={i} className="aspect-square rounded-[12px] overflow-hidden bg-[var(--color-gray-light)] relative">
+          <div key={url} className="aspect-square rounded-[12px] overflow-hidden bg-[var(--color-gray-light)] relative group">
             <img src={url} alt="" className="w-full h-full object-cover" />
             {i === 0 && (
               <div className="absolute bottom-1.5 left-1.5 bg-black/50 text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full">Main</div>
             )}
+            <button
+              onClick={() => onRemove(i)}
+              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white text-[10px] font-bold hidden group-hover:flex items-center justify-center"
+            >
+              ×
+            </button>
           </div>
         ))}
-        <button
-          onClick={onAdd}
-          className="aspect-square rounded-[12px] border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center gap-2 hover:border-[var(--color-amber)] hover:bg-[var(--color-amber-light)]/30 transition-all"
-        >
-          <IconPhoto size={22} stroke={1.2} className="text-[var(--color-gray)]" />
-          <span className="text-[10px] text-[var(--color-gray)]">Add photo</span>
-        </button>
+
+        {uploading ? (
+          <div className="aspect-square rounded-[12px] border-2 border-dashed border-[var(--color-amber)] bg-[var(--color-amber-light)]/30 flex flex-col items-center justify-center gap-2">
+            <div className="w-5 h-5 border-2 border-[var(--color-amber)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[10px] text-[var(--color-amber)]">Uploading…</span>
+          </div>
+        ) : (
+          <button
+            onClick={() => inputRef.current?.click()}
+            className="aspect-square rounded-[12px] border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center gap-2 hover:border-[var(--color-amber)] hover:bg-[var(--color-amber-light)]/30 transition-all"
+          >
+            <IconPhoto size={22} stroke={1.2} className="text-[var(--color-gray)]" />
+            <span className="text-[10px] text-[var(--color-gray)]">Add photo</span>
+          </button>
+        )}
       </div>
 
       {photos.length < 3 ? (
@@ -433,30 +508,107 @@ function StepServiceArea() {
   )
 }
 
+// ── Schedule conversion helpers ────────────────────────────────────────────
+
+const DAY_TO_NUM: Record<string, number> = {
+  mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6,
+}
+
+function parseTimeToHHMM(t: string): string {
+  const [time, period] = t.split(' ')
+  const [h, m] = time.split(':').map(Number)
+  let hour = h
+  if (period === 'PM' && h !== 12) hour += 12
+  if (period === 'AM' && h === 12) hour = 0
+  return `${String(hour).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+function scheduleToSlots(schedule: ScheduleValue) {
+  return Array.from(schedule.days).map(day => ({
+    dayOfWeek: DAY_TO_NUM[day],
+    fromTime: parseTimeToHHMM(schedule.from),
+    toTime: parseTimeToHHMM(schedule.to),
+  }))
+}
+
 export default function OnboardingWizard() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const [services, setServices]           = useState<ExperienceType[]>([])
   const [rate, setRate]                   = useState(1000)
+  const [displayName, setDisplayName]     = useState('')
+  const [dateOfBirth, setDateOfBirth]     = useState('')
   const [interests, setInterests]         = useState<string[]>([])
   const [personalityTags, setPersonality] = useState<string[]>([])
   const [schedule, setSchedule]           = useState<ScheduleValue>(createEmptySchedule())
-  const [photos, setPhotos]               = useState<string[]>([
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
-  ])
+  const [photos, setPhotos]               = useState<string[]>([])
+  const [photoUploading, setPhotoUploading] = useState(false)
   const [selfieCaptured, setSelfieCaptured] = useState(false)
   const [idCaptured, setIdCaptured]         = useState(false)
 
+  async function handlePhotoFiles(files: FileList) {
+    setPhotoUploading(true)
+    try {
+      for (const file of Array.from(files)) {
+        const form = new FormData()
+        form.append('file', file)
+        const res = await api.post<{ url: string }>('/uploads/photo', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        setPhotos(prev => [...prev, res.data.url])
+      }
+    } catch {
+      // individual upload failures are silent — the grid just won't grow
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
+
   function canProceed() {
     if (step === 1) return services.length > 0
-    if (step === 5) return photos.length >= 3
+    if (step === 3) return displayName.trim().length > 0 && dateOfBirth.length > 0
+    if (step === 5) return photos.length >= 3 && !photoUploading
     return true
   }
 
-  function next() {
-    if (step < TOTAL_STEPS) setStep(s => s + 1)
-    else navigate('/app/companion/dashboard')
+  async function next() {
+    if (step < TOTAL_STEPS) {
+      setStep(s => s + 1)
+      return
+    }
+
+    // Final step — submit
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const bio = [...interests, ...personalityTags].join(', ')
+
+      await api.post('/companions/me', {
+        displayName: displayName.trim(),
+        bio: bio || undefined,
+        dateOfBirth,
+        profilePhotoUrl: photos[0],
+        hourlyRatePaisa: rate * 100,
+        serviceAreaCentre: [77.209, 28.6139], // Delhi NCR default
+        serviceAreaRadiusKm: 25,
+        services,
+      })
+
+      const slots = scheduleToSlots(schedule)
+      if (slots.length > 0) {
+        await api.put('/companions/me/availability', { slots })
+      }
+
+      navigate('/app/companion/dashboard')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setSubmitError(typeof msg === 'string' ? msg : 'Submission failed. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function back() {
@@ -552,8 +704,12 @@ export default function OnboardingWizard() {
               {step === 2 && <StepRate rate={rate} onChange={setRate} />}
               {step === 3 && (
                 <StepInterests
+                  displayName={displayName}
+                  dateOfBirth={dateOfBirth}
                   selected={interests}
                   tags={personalityTags}
+                  onDisplayName={setDisplayName}
+                  onDateOfBirth={setDateOfBirth}
                   onSelected={setInterests}
                   onTags={setPersonality}
                 />
@@ -563,15 +719,9 @@ export default function OnboardingWizard() {
               {step === 5 && (
                 <StepPhotos
                   photos={photos}
-                  onAdd={() => {
-                    const pool = [
-                      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
-                      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
-                      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
-                    ]
-                    const pick = pool[photos.length - 1]
-                    if (pick) setPhotos(p => [...p, pick])
-                  }}
+                  uploading={photoUploading}
+                  onRemove={i => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                  onFilesSelected={handlePhotoFiles}
                 />
               )}
               {step === 6 && <StepSelfie captured={selfieCaptured} onCapture={() => setSelfieCaptured(true)} />}
@@ -580,23 +730,39 @@ export default function OnboardingWizard() {
           </div>
 
           {/* ── Bottom CTA ── */}
-          <div className="sticky bottom-0 bg-white border-t border-[var(--color-border)] px-5 md:px-10 py-4 flex items-center justify-between gap-4">
-            <div>
-              {step === 1 && services.length === 0 && (
-                <p className="text-[12px] text-[var(--color-gray)]">Select at least one service</p>
-              )}
-              {step === 5 && photos.length < 3 && (
-                <p className="text-[12px] text-[var(--color-gray)]">Need {3 - photos.length} more photo{3 - photos.length > 1 ? 's' : ''}</p>
-              )}
+          <div className="sticky bottom-0 bg-white border-t border-[var(--color-border)] px-5 md:px-10 py-4 flex flex-col gap-2">
+            {submitError && (
+              <div className="flex items-center gap-2 bg-[var(--color-error-bg)] rounded-[10px] px-3 py-2">
+                <IconAlertCircle size={14} stroke={1.5} className="text-[var(--color-error)] flex-none" />
+                <p className="text-[12px] text-[var(--color-error)]">{submitError}</p>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                {step === 1 && services.length === 0 && (
+                  <p className="text-[12px] text-[var(--color-gray)]">Select at least one service</p>
+                )}
+                {step === 3 && (!displayName.trim() || !dateOfBirth) && (
+                  <p className="text-[12px] text-[var(--color-gray)]">Display name and date of birth are required</p>
+                )}
+                {step === 5 && photoUploading && (
+                  <p className="text-[12px] text-[var(--color-gray)]">Uploading…</p>
+                )}
+                {step === 5 && !photoUploading && photos.length < 3 && (
+                  <p className="text-[12px] text-[var(--color-gray)]">Need {3 - photos.length} more photo{3 - photos.length > 1 ? 's' : ''}</p>
+                )}
+              </div>
+              <Button size="lg" onClick={next} disabled={!canProceed() || submitting} className="min-w-[160px]">
+                <span className="flex items-center justify-center gap-2">
+                  {submitting
+                    ? 'Submitting…'
+                    : step === TOTAL_STEPS
+                      ? <><IconCheck size={16} stroke={2} /> Submit Application</>
+                      : <>Continue <IconArrowRight size={16} stroke={2} /></>
+                  }
+                </span>
+              </Button>
             </div>
-            <Button size="lg" onClick={next} disabled={!canProceed()} className="min-w-[160px]">
-              <span className="flex items-center justify-center gap-2">
-                {step === TOTAL_STEPS
-                  ? <><IconCheck size={16} stroke={2} /> Submit Application</>
-                  : <>Continue <IconArrowRight size={16} stroke={2} /></>
-                }
-              </span>
-            </Button>
           </div>
         </main>
       </div>
