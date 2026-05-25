@@ -1,16 +1,32 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconCalendarEvent, IconClock, IconMapPin, IconChevronRight,
   IconCircleCheck, IconLoader, IconWallet,
 } from '@tabler/icons-react'
 import { Avatar, Badge } from '../../components/ui'
+import { api } from '../../lib/api'
 
-type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled'
+type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+
+interface ApiBooking {
+  id: string
+  serviceType: string
+  bookedStart: string
+  bookedEnd: string
+  bookedDurationMinutes: number
+  meetingSpotText: string
+  status: BookingStatus
+  amountPaisa: number
+  companion?: {
+    id: string
+    displayName: string
+    profilePhotoUrl: string
+  }
+}
 
 interface Booking {
   id: string
-  companionId: string
   companionName: string
   companionInitials: string
   companionAvatar?: string
@@ -23,70 +39,31 @@ interface Booking {
   total: number
 }
 
-const MOCK_BOOKINGS: Booking[] = [
-  {
-    id: 'b1',
-    companionId: '1',
-    companionName: 'Aanya',
-    companionInitials: 'A',
-    companionAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
-    service: 'Coffee Date',
-    date: 'May 17, 2026',
-    time: '10:00 AM',
-    duration: 2,
-    location: 'Bandra West, Mumbai',
-    status: 'confirmed',
-    total: 1600,
-  },
-  {
-    id: 'b2',
-    companionId: '4',
-    companionName: 'Kabir',
-    companionInitials: 'K',
-    companionAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
-    service: 'Fine Dining',
-    date: 'May 18, 2026',
-    time: '7:00 PM',
-    duration: 3,
-    location: 'Lower Parel, Mumbai',
-    status: 'pending',
-    total: 3900,
-  },
-  {
-    id: 'b3',
-    companionId: '3',
-    companionName: 'Priya',
-    companionInitials: 'P',
-    companionAvatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
-    service: 'Fitness Session',
-    date: 'May 10, 2026',
-    time: '7:00 AM',
-    duration: 2,
-    location: 'Juhu, Mumbai',
-    status: 'completed',
-    total: 1900,
-  },
-  {
-    id: 'b4',
-    companionId: '6',
-    companionName: 'Arjun',
-    companionInitials: 'Ar',
-    companionAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face',
-    service: 'Concert',
-    date: 'May 5, 2026',
-    time: '6:00 PM',
-    duration: 4,
-    location: 'Lower Parel, Mumbai',
-    status: 'cancelled',
-    total: 4400,
-  },
-]
+function toBooking(b: ApiBooking): Booking {
+  const start = new Date(b.bookedStart)
+  const name = b.companion?.displayName ?? 'Companion'
+  const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+  return {
+    id: b.id,
+    companionName: name,
+    companionInitials: initials,
+    companionAvatar: b.companion?.profilePhotoUrl,
+    service: b.serviceType,
+    date: start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: start.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    duration: Math.round(b.bookedDurationMinutes / 60),
+    location: b.meetingSpotText ?? '—',
+    status: b.status,
+    total: Math.round(b.amountPaisa / 100),
+  }
+}
 
 const STATUS_CONFIG: Record<BookingStatus, { label: string; variant: 'success' | 'warning' | 'default' | 'error' }> = {
-  pending:   { label: 'Pending',   variant: 'warning' },
-  confirmed: { label: 'Confirmed', variant: 'success' },
-  completed: { label: 'Completed', variant: 'default' },
-  cancelled: { label: 'Cancelled', variant: 'error'   },
+  pending:     { label: 'Pending',     variant: 'warning' },
+  confirmed:   { label: 'Confirmed',   variant: 'success' },
+  in_progress: { label: 'In Progress', variant: 'success' },
+  completed:   { label: 'Completed',   variant: 'default' },
+  cancelled:   { label: 'Cancelled',   variant: 'error'   },
 }
 
 function BookingCard({ booking, onClick }: { booking: Booking; onClick: () => void }) {
@@ -135,12 +112,21 @@ function BookingCard({ booking, onClick }: { booking: Booking; onClick: () => vo
 export default function BookingsPage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const upcoming = MOCK_BOOKINGS.filter(b => b.status === 'pending' || b.status === 'confirmed')
-  const past     = MOCK_BOOKINGS.filter(b => b.status === 'completed' || b.status === 'cancelled')
+  useEffect(() => {
+    api.get<ApiBooking[]>('/bookings')
+      .then(res => setBookings(res.data.map(toBooking)))
+      .catch(() => setBookings([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const upcoming = bookings.filter(b => b.status === 'pending' || b.status === 'confirmed' || b.status === 'in_progress')
+  const past     = bookings.filter(b => b.status === 'completed' || b.status === 'cancelled')
   const current  = tab === 'upcoming' ? upcoming : past
 
-  const totalSpent = MOCK_BOOKINGS
+  const totalSpent = bookings
     .filter(b => b.status === 'completed')
     .reduce((sum, b) => sum + b.total, 0)
 
@@ -155,10 +141,10 @@ export default function BookingsPage() {
           {/* Stats strip */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             {[
-              { label: 'Total Bookings',  value: MOCK_BOOKINGS.length,                                           icon: <IconCalendarEvent size={16} stroke={1.5} color="var(--color-amber)" /> },
-              { label: 'Upcoming',        value: upcoming.length,                                                icon: <IconLoader size={16} stroke={1.5} color="var(--color-amber)" /> },
-              { label: 'Completed',       value: past.filter(b => b.status === 'completed').length,             icon: <IconCircleCheck size={16} stroke={1.5} color="var(--color-success)" /> },
-              { label: 'Total Spent',     value: `₹${totalSpent.toLocaleString()}`,                             icon: <IconWallet size={16} stroke={1.5} color="var(--color-amber)" /> },
+              { label: 'Total Bookings', value: loading ? '—' : bookings.length,                                         icon: <IconCalendarEvent size={16} stroke={1.5} color="var(--color-amber)" /> },
+              { label: 'Upcoming',       value: loading ? '—' : upcoming.length,                                         icon: <IconLoader size={16} stroke={1.5} color="var(--color-amber)" /> },
+              { label: 'Completed',      value: loading ? '—' : past.filter(b => b.status === 'completed').length,       icon: <IconCircleCheck size={16} stroke={1.5} color="var(--color-success)" /> },
+              { label: 'Total Spent',    value: loading ? '—' : `₹${totalSpent.toLocaleString()}`,                       icon: <IconWallet size={16} stroke={1.5} color="var(--color-amber)" /> },
             ].map(stat => (
               <div key={stat.label} className="flex items-center gap-3 bg-[var(--color-gray-light)] rounded-[12px] px-3.5 py-2.5">
                 <div className="w-8 h-8 rounded-[8px] bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -184,7 +170,7 @@ export default function BookingsPage() {
                     : 'text-[var(--color-gray)] border-transparent hover:text-[var(--color-dark)]'
                 }`}
               >
-                {t === 'upcoming' ? 'Upcoming' : 'Past'} ({t === 'upcoming' ? upcoming.length : past.length})
+                {t === 'upcoming' ? 'Upcoming' : 'Past'} ({loading ? '…' : t === 'upcoming' ? upcoming.length : past.length})
               </button>
             ))}
           </div>
@@ -193,7 +179,13 @@ export default function BookingsPage() {
 
       {/* ── Booking list ── */}
       <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10 py-5">
-        {current.length === 0 ? (
+        {loading ? (
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-[16px] bg-white border border-[var(--color-border)] animate-pulse h-[200px]" />
+            ))}
+          </div>
+        ) : current.length === 0 ? (
           <div className="py-20 text-center">
             <div className="w-16 h-16 rounded-full bg-[var(--color-gray-light)] flex items-center justify-center mx-auto mb-4">
               <IconCalendarEvent size={28} stroke={1.2} className="text-[var(--color-gray)]" />

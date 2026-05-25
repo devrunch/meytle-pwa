@@ -1,22 +1,40 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { IconUsers, IconEye, IconEyeOff } from '@tabler/icons-react'
 import { Button, Input } from '../../components/ui'
+import { api } from '../../lib/api'
+import { useAuthStore } from '../../store/auth'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const login = useAuthStore(s => s.login)
+
   const [showPassword, setShowPassword] = useState(false)
   const [form, setForm] = useState({ email: '', password: '' })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    navigate('/app')
+    setError('')
+    setLoading(true)
+    try {
+      const { data } = await api.post('/auth/login', form)
+      login(data.user, data.accessToken)
+      const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/app'
+      navigate(from, { replace: true })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
+      setError(Array.isArray(msg) ? msg[0] : (msg ?? 'Login failed'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-[360px]">
-        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-10 h-10 rounded-[10px] bg-[var(--color-amber)] flex items-center justify-center mb-3">
             <IconUsers size={20} stroke={1.5} color="white" />
@@ -52,13 +70,21 @@ export default function LoginPage() {
             </button>
           </div>
 
+          {error && (
+            <p className="text-[12px] text-[var(--color-error)] bg-[var(--color-error-bg)] rounded-[8px] px-3 py-2">
+              {error}
+            </p>
+          )}
+
           <div className="flex justify-end">
             <button type="button" className="text-[12px] text-[var(--color-amber)] hover:underline">
               Forgot password?
             </button>
           </div>
 
-          <Button type="submit" size="lg" className="mt-1 w-full">Log In</Button>
+          <Button type="submit" size="lg" className="mt-1 w-full" disabled={loading}>
+            {loading ? 'Signing in…' : 'Log In'}
+          </Button>
         </form>
 
         <p className="text-center text-[13px] text-[var(--color-gray)] mt-6">

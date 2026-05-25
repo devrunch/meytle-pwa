@@ -6,6 +6,7 @@ import {
   IconSettings, IconLogout,
 } from '@tabler/icons-react'
 import { BottomNav } from '../components/ui'
+import { useAuthStore } from '../store/auth'
 import type { NavTab } from '../types'
 
 const TAB_ROUTES: Record<NavTab, string> = {
@@ -27,6 +28,14 @@ export default function AppLayout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [profileOpen, setProfileOpen] = useState(false)
+  const user = useAuthStore(s => s.user)
+  const logout = useAuthStore(s => s.logout)
+  const initials = user?.fullName?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) ?? '?'
+
+  function handleLogout() {
+    logout()
+    navigate('/login')
+  }
 
   const activeTab: NavTab = (() => {
     if (pathname === '/app' || pathname === '/app/') return 'home'
@@ -93,9 +102,9 @@ export default function AppLayout() {
                 className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-[8px] hover:bg-[var(--color-gray-light)] transition-colors"
               >
                 <div className="w-7 h-7 rounded-full bg-[var(--color-amber-light)] flex items-center justify-center">
-                  <span className="text-[11px] font-bold text-[var(--color-amber-dark)]">Y</span>
+                  <span className="text-[11px] font-bold text-[var(--color-amber-dark)]">{initials}</span>
                 </div>
-                <span className="text-[13px] font-medium text-[var(--color-dark)]">You</span>
+                <span className="text-[13px] font-medium text-[var(--color-dark)]">{user?.fullName?.split(' ')[0] ?? 'Me'}</span>
                 <IconChevronDown size={13} stroke={1.5} className={`text-[var(--color-gray)] transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
               </button>
 
@@ -106,8 +115,8 @@ export default function AppLayout() {
                   {/* Menu */}
                   <div className="absolute right-0 top-full mt-2 w-[200px] bg-white rounded-[12px] border border-[var(--color-border)] shadow-lg py-1.5 z-20">
                     <div className="px-4 py-2.5 border-b border-[var(--color-border)]">
-                      <p className="text-[13px] font-semibold text-[var(--color-dark)]">You</p>
-                      <p className="text-[11px] text-[var(--color-gray)]">you@example.com</p>
+                      <p className="text-[13px] font-semibold text-[var(--color-dark)]">{user?.fullName ?? 'Me'}</p>
+                      <p className="text-[11px] text-[var(--color-gray)]">{user?.email ?? ''}</p>
                     </div>
 
                     {[
@@ -128,7 +137,7 @@ export default function AppLayout() {
 
                     <div className="border-t border-[var(--color-border)] mt-1 pt-1">
                       <button
-                        onClick={() => navigate('/login')}
+                        onClick={handleLogout}
                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[var(--color-error)] hover:bg-[var(--color-error-bg)] transition-colors text-left"
                       >
                         <IconLogout size={14} stroke={1.5} />
