@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconCalendarEvent, IconClock, IconMapPin,
@@ -6,8 +7,28 @@ import {
 } from '@tabler/icons-react'
 import { Avatar } from '../../components/ui'
 import LocationPickerMap from '../../components/ui/LocationPickerMap'
+import { api } from '../../lib/api'
 
-type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled'
+type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+
+interface ApiBooking {
+  id: string
+  serviceType: string
+  bookedStart: string
+  bookedEnd: string
+  bookedDurationMinutes: number
+  meetingSpotText: string
+  meetingSpot: string | null
+  status: BookingStatus
+  amountPaisa: number
+  companion?: {
+    id: string
+    displayName: string
+    profilePhotoUrl: string
+    ratingAvg: number | null
+    ratingCount: number
+  }
+}
 
 interface Booking {
   id: string
@@ -15,6 +36,7 @@ interface Booking {
   companionName: string
   companionInitials: string
   companionAvatar?: string
+  companionRating: number
   service: string
   date: string
   time: string
@@ -26,87 +48,73 @@ interface Booking {
   total: number
 }
 
-const MOCK_BOOKINGS: Booking[] = [
-  {
-    id: 'b1',
-    companionId: '1',
-    companionName: 'Aanya',
-    companionInitials: 'A',
-    companionAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
-    service: 'Coffee Date',
-    date: 'May 17, 2026',
-    time: '10:00 AM',
-    endTime: '12:00 PM',
-    duration: 2,
-    location: 'Bandra West, Mumbai',
-    locationCoords: { lng: 72.8347, lat: 19.0596 },
-    status: 'confirmed',
-    total: 1600,
-  },
-  {
-    id: 'b2',
-    companionId: '4',
-    companionName: 'Kabir',
-    companionInitials: 'K',
-    companionAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
-    service: 'Fine Dining',
-    date: 'May 18, 2026',
-    time: '7:00 PM',
-    endTime: '10:00 PM',
-    duration: 3,
-    location: 'Lower Parel, Mumbai',
-    locationCoords: { lng: 72.8332, lat: 19.0176 },
-    status: 'pending',
-    total: 3900,
-  },
-  {
-    id: 'b3',
-    companionId: '3',
-    companionName: 'Priya',
-    companionInitials: 'P',
-    companionAvatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
-    service: 'Fitness Session',
-    date: 'May 10, 2026',
-    time: '7:00 AM',
-    endTime: '9:00 AM',
-    duration: 2,
-    location: 'Juhu, Mumbai',
-    locationCoords: { lng: 72.8264, lat: 19.0948 },
-    status: 'completed',
-    total: 1900,
-  },
-  {
-    id: 'b4',
-    companionId: '6',
-    companionName: 'Arjun',
-    companionInitials: 'Ar',
-    companionAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face',
-    service: 'Concert',
-    date: 'May 5, 2026',
-    time: '6:00 PM',
-    endTime: '10:00 PM',
-    duration: 4,
-    location: 'Lower Parel, Mumbai',
-    locationCoords: { lng: 72.8332, lat: 19.0176 },
-    status: 'cancelled',
-    total: 4400,
-  },
-]
+function parseEwkt(ewkt: string | null): { lng: number; lat: number } | undefined {
+  if (!ewkt) return undefined
+  const m = ewkt.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/)
+  if (!m) return undefined
+  return { lng: parseFloat(m[1]), lat: parseFloat(m[2]) }
+}
+
+function toBooking(b: ApiBooking): Booking {
+  const start = new Date(b.bookedStart)
+  const end = new Date(b.bookedEnd)
+  const name = b.companion?.displayName ?? 'Companion'
+  const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+  return {
+    id: b.id,
+    companionId: b.companion?.id ?? '',
+    companionName: name,
+    companionInitials: initials,
+    companionAvatar: b.companion?.profilePhotoUrl,
+    companionRating: b.companion?.ratingAvg ?? 0,
+    service: b.serviceType,
+    date: start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: start.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    endTime: end.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    duration: Math.round(b.bookedDurationMinutes / 60),
+    location: b.meetingSpotText ?? '—',
+    locationCoords: parseEwkt(b.meetingSpot),
+    status: b.status,
+    total: Math.round(b.amountPaisa / 100),
+  }
+}
 
 const STATUS_CONFIG: Record<BookingStatus, { label: string; bg: string; text: string }> = {
-  pending:   { label: 'Awaiting confirmation', bg: 'bg-yellow-50 border-yellow-200',   text: 'text-yellow-700' },
-  confirmed: { label: 'Confirmed',              bg: 'bg-[var(--color-success-bg)] border-[var(--color-success)]/30', text: 'text-[var(--color-success)]' },
-  completed: { label: 'Completed',              bg: 'bg-[var(--color-gray-light)] border-[var(--color-border)]',     text: 'text-[var(--color-gray)]' },
-  cancelled: { label: 'Cancelled',              bg: 'bg-[var(--color-error-bg)] border-[var(--color-error)]/30',     text: 'text-[var(--color-error)]' },
+  pending:     { label: 'Awaiting confirmation', bg: 'bg-yellow-50 border-yellow-200',   text: 'text-yellow-700' },
+  confirmed:   { label: 'Confirmed',              bg: 'bg-[var(--color-success-bg)] border-[var(--color-success)]/30', text: 'text-[var(--color-success)]' },
+  in_progress: { label: 'In Progress',            bg: 'bg-[var(--color-success-bg)] border-[var(--color-success)]/30', text: 'text-[var(--color-success)]' },
+  completed:   { label: 'Completed',              bg: 'bg-[var(--color-gray-light)] border-[var(--color-border)]',     text: 'text-[var(--color-gray)]' },
+  cancelled:   { label: 'Cancelled',              bg: 'bg-[var(--color-error-bg)] border-[var(--color-error)]/30',     text: 'text-[var(--color-error)]' },
 }
 
 export default function BookingDetailPage() {
   const { bookingId } = useParams<{ bookingId: string }>()
   const navigate = useNavigate()
+  const [booking, setBooking] = useState<Booking | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  const booking = MOCK_BOOKINGS.find(b => b.id === bookingId)
+  useEffect(() => {
+    if (!bookingId) { setNotFound(true); setLoading(false); return }
+    api.get<ApiBooking>(`/bookings/${bookingId}`)
+      .then(res => setBooking(toBooking(res.data)))
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false))
+  }, [bookingId])
 
-  if (!booking) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg)] animate-pulse">
+        <div className="bg-white border-b border-[var(--color-border)] h-[52px]" />
+        <div className="max-w-[760px] mx-auto px-4 py-5 flex flex-col gap-4">
+          <div className="h-[100px] rounded-[16px] bg-white border border-[var(--color-border)]" />
+          <div className="h-[220px] rounded-[16px] bg-white border border-[var(--color-border)]" />
+        </div>
+      </div>
+    )
+  }
+
+  if (notFound || !booking) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <p className="text-[14px] text-[var(--color-gray)]">Booking not found</p>
@@ -116,7 +124,7 @@ export default function BookingDetailPage() {
   }
 
   const status = STATUS_CONFIG[booking.status]
-  const isConfirmed = booking.status === 'confirmed'
+  const isConfirmed = booking.status === 'confirmed' || booking.status === 'in_progress'
   const isPending = booking.status === 'pending'
   const isCompleted = booking.status === 'completed'
 
@@ -149,13 +157,15 @@ export default function BookingDetailPage() {
           <Avatar src={booking.companionAvatar} initials={booking.companionInitials} size="xl" />
           <div className="flex-1 min-w-0">
             <p className="text-[16px] font-semibold text-[var(--color-dark)]">{booking.companionName}</p>
-            <p className="text-[12px] text-[var(--color-gray)]">Booking #{booking.id.toUpperCase()}</p>
-            <div className="flex items-center gap-1 mt-1">
-              {[1,2,3,4,5].map(i => (
-                <IconStar key={i} size={11} stroke={1.5} className={i <= 4 ? 'text-[var(--color-amber)] fill-[var(--color-amber)]' : 'text-[var(--color-border)]'} />
-              ))}
-              <span className="text-[10px] text-[var(--color-gray)] ml-1">4.9</span>
-            </div>
+            <p className="text-[12px] text-[var(--color-gray)]">Booking #{booking.id.slice(0, 8).toUpperCase()}</p>
+            {booking.companionRating > 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                {[1,2,3,4,5].map(i => (
+                  <IconStar key={i} size={11} stroke={1.5} className={i <= Math.round(booking.companionRating) ? 'text-[var(--color-amber)] fill-[var(--color-amber)]' : 'text-[var(--color-border)]'} />
+                ))}
+                <span className="text-[10px] text-[var(--color-gray)] ml-1">{booking.companionRating.toFixed(1)}</span>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-2 items-end flex-shrink-0">
             <button
@@ -167,7 +177,7 @@ export default function BookingDetailPage() {
             </button>
             {isConfirmed && (
               <button
-                onClick={() => navigate('/app/messages')}
+                onClick={() => navigate(`/app/messages/${booking.id}`)}
                 className="px-3 py-1.5 rounded-[10px] bg-[var(--color-amber)] text-[12px] font-medium text-white hover:opacity-90 transition-opacity flex items-center gap-1.5"
               >
                 <IconMessageCircle size={12} stroke={1.5} />

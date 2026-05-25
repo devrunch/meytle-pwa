@@ -1,40 +1,59 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconSend, IconSearch, IconMessages,
   IconLock, IconCalendar,
 } from '@tabler/icons-react'
 import { Avatar } from '../../components/ui'
+import { api } from '../../lib/api'
+import { connectSocket, disconnectSocket, getSocket } from '../../lib/socket'
+import { useAuthStore } from '../../store/auth'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type BookingStatus = 'pending' | 'accepted' | 'completed' | 'cancelled'
+type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
 
-interface Booking {
+interface ApiBooking {
+  id: string
+  serviceType: string
+  bookedStart: string
+  bookedEnd: string
   status: BookingStatus
+  companion?: {
+    id: string
+    displayName: string
+    profilePhotoUrl: string
+    isAvailableNow: boolean
+  }
+}
+
+interface ApiMessage {
+  id: string
+  senderId: string
+  content: string
+  sentAt: string
+}
+
+interface Conversation {
+  bookingId: string
+  name: string
+  initials: string
+  avatarUrl?: string
+  online: boolean
   service: string
-  startTime: Date
-  endTime: Date
+  bookedStart: Date
+  bookedEnd: Date
+  status: BookingStatus
+  lastMessage: string
+  time: string
+  unread: number
 }
 
 interface Message {
   id: string
-  senderId: 'me' | 'them'
+  senderId: 'me' | 'other'
   text: string
   time: string
-}
-
-interface Conversation {
-  id: string
-  name: string
-  initials: string
-  avatarUrl?: string
-  lastMessage: string
-  time: string
-  unread: number
-  online: boolean
-  booking: Booking
-  messages: Message[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -51,35 +70,18 @@ function fmtDate(date: Date) {
   return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-// Returns whether messaging is currently open, and a reason string if not
-function getMessagingState(booking: Booking): {
-  canMessage: boolean
-  reason: string
-  detail: string
-} {
+function getMessagingState(status: BookingStatus, bookedStart: Date, bookedEnd: Date, service: string) {
   const now = new Date()
-  const windowOpen = addHours(booking.startTime, -3)
+  const windowOpen = addHours(bookedStart, -3)
 
-  if (booking.status === 'pending') {
-    return {
-      canMessage: false,
-      reason: 'Waiting for confirmation',
-      detail: 'Messaging opens once the companion accepts your booking request.',
-    }
+  if (status === 'pending') {
+    return { canMessage: false, reason: 'Waiting for confirmation', detail: 'Messaging opens once the companion accepts your booking request.' }
   }
-  if (booking.status === 'cancelled') {
-    return {
-      canMessage: false,
-      reason: 'Booking cancelled',
-      detail: 'This booking was cancelled. No further messages can be sent.',
-    }
+  if (status === 'cancelled') {
+    return { canMessage: false, reason: 'Booking cancelled', detail: 'This booking was cancelled.' }
   }
-  if (booking.status === 'completed' || now > booking.endTime) {
-    return {
-      canMessage: false,
-      reason: 'Session ended',
-      detail: `Your ${booking.service} session ended at ${fmtTime(booking.endTime)}.`,
-    }
+  if (status === 'completed' && now > addHours(bookedEnd, 24)) {
+    return { canMessage: false, reason: 'Chat closed', detail: `Your ${service} session chat has closed.` }
   }
   if (now < windowOpen) {
     const diffMs = windowOpen.getTime() - now.getTime()
@@ -89,104 +91,37 @@ function getMessagingState(booking: Booking): {
     return {
       canMessage: false,
       reason: 'Too early to message',
-      detail: `Chat unlocks 3 hours before your booking on ${fmtDate(booking.startTime)} at ${fmtTime(booking.startTime)}. Opens in ${timeLabel}.`,
+      detail: `Chat unlocks 3 hours before your booking on ${fmtDate(bookedStart)} at ${fmtTime(bookedStart)}. Opens in ${timeLabel}.`,
     }
   }
-  // booking.status === 'accepted' && within window
   return { canMessage: true, reason: '', detail: '' }
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-// Relative to "now" so demo always shows meaningful states
+function statusDotColor(status: BookingStatus): string {
+  if (status === 'pending')   return 'bg-yellow-400'
+  if (status === 'confirmed' || status === 'in_progress') return 'bg-[var(--color-success)]'
+  if (status === 'completed') return 'bg-[var(--color-border)]'
+  return 'bg-[var(--color-error)]'
+}
 
-const NOW = new Date()
-
-const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    id: '1',
-    name: 'Aanya',
-    initials: 'A',
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
-    lastMessage: 'Looking forward to our coffee date!',
-    time: '2m ago',
-    unread: 2,
-    online: true,
-    // Accepted, starts in 1.5h → within 3h window → CAN message
-    booking: {
-      status: 'accepted',
-      service: 'Coffee Date',
-      startTime: addHours(NOW, 1.5),
-      endTime:   addHours(NOW, 3.5),
-    },
-    messages: [
-      { id: '1', senderId: 'them', text: 'Hey! I confirmed your booking for today.', time: fmtTime(addHours(NOW, -40/60)) },
-      { id: '2', senderId: 'me',   text: 'Great, really excited!', time: fmtTime(addHours(NOW, -38/60)) },
-      { id: '3', senderId: 'them', text: 'Looking forward to our coffee date!', time: fmtTime(addHours(NOW, -37/60)) },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Kabir',
-    initials: 'K',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
-    lastMessage: 'The restaurant has a 7pm reservation.',
-    time: '1h ago',
-    unread: 0,
-    online: true,
-    // Accepted, but starts in 6h → outside 3h window → CANNOT message yet
-    booking: {
-      status: 'accepted',
-      service: 'Fine Dining',
-      startTime: addHours(NOW, 6),
-      endTime:   addHours(NOW, 9),
-    },
-    messages: [
-      { id: '1', senderId: 'me',   text: 'Hi Kabir, looking forward to dinner!', time: fmtTime(addHours(NOW, -60/60)) },
-      { id: '2', senderId: 'them', text: 'The restaurant has a 7pm reservation.', time: fmtTime(addHours(NOW, -15/60)) },
-    ],
-  },
-  {
-    id: '3',
-    name: 'Priya',
-    initials: 'P',
-    avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
-    lastMessage: 'Booking request sent.',
-    time: 'Yesterday',
-    unread: 0,
-    online: false,
-    // Still pending → CANNOT message
-    booking: {
-      status: 'pending',
-      service: 'Fitness',
-      startTime: addHours(NOW, 24),
-      endTime:   addHours(NOW, 26),
-    },
-    messages: [
-      { id: '1', senderId: 'me', text: 'Hi Priya! Just sent a booking request for Saturday.', time: 'Yesterday' },
-    ],
-  },
-]
+function statusLabel(status: BookingStatus): string {
+  if (status === 'pending')     return 'Pending'
+  if (status === 'confirmed')   return 'Confirmed'
+  if (status === 'in_progress') return 'In Progress'
+  if (status === 'completed')   return 'Done'
+  return 'Cancelled'
+}
 
 // ─── ConversationList ────────────────────────────────────────────────────────
 
-function statusDot(booking: Booking): { color: string; label: string } {
-  if (booking.status === 'pending')   return { color: 'bg-yellow-400',                      label: 'Pending' }
-  if (booking.status === 'accepted')  return { color: 'bg-[var(--color-success)]',           label: 'Confirmed' }
-  if (booking.status === 'completed') return { color: 'bg-[var(--color-border)]',            label: 'Done' }
-  return                                     { color: 'bg-[var(--color-error)]',             label: 'Cancelled' }
-}
-
-function ConversationList({
-  onSelect,
-  activeId,
-}: {
-  onSelect: (id: string) => void
+function ConversationList({ conversations, activeId, onSelect, loading }: {
+  conversations: Conversation[]
   activeId: string | null
+  onSelect: (id: string) => void
+  loading: boolean
 }) {
   const [search, setSearch] = useState('')
-  const filtered = MOCK_CONVERSATIONS.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = conversations.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="flex flex-col h-full">
@@ -205,70 +140,121 @@ function ConversationList({
       </div>
 
       <div className="flex-1 overflow-y-auto divide-y divide-[var(--color-border)]">
-        {filtered.map(conv => {
-          const { canMessage } = getMessagingState(conv.booking)
-          const dot = statusDot(conv.booking)
-          return (
-            <button
-              key={conv.id}
-              onClick={() => onSelect(conv.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                activeId === conv.id
-                  ? 'bg-[var(--color-amber-light)]'
-                  : 'hover:bg-[var(--color-gray-light)]'
-              }`}
-            >
-              <Avatar src={conv.avatarUrl} initials={conv.initials} size="lg" online={conv.online} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
-                  <p className="text-[14px] font-semibold text-[var(--color-dark)]">{conv.name}</p>
-                  <p className="text-[11px] text-[var(--color-gray)]">{conv.time}</p>
-                </div>
-                <p className="text-[12px] text-[var(--color-gray)] truncate mb-1">{conv.lastMessage}</p>
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${dot.color}`} />
-                  <span className="text-[10px] text-[var(--color-gray)]">{dot.label}</span>
-                </div>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
+              <div className="w-10 h-10 rounded-full bg-[var(--color-gray-light)]" />
+              <div className="flex-1 flex flex-col gap-1.5">
+                <div className="h-3 w-24 rounded bg-[var(--color-gray-light)]" />
+                <div className="h-2.5 w-40 rounded bg-[var(--color-gray-light)]" />
               </div>
-              {canMessage && conv.unread > 0 ? (
-                <div className="w-5 h-5 rounded-full bg-[var(--color-amber)] flex items-center justify-center flex-none">
-                  <span className="text-[10px] text-white font-bold">{conv.unread}</span>
-                </div>
-              ) : !canMessage ? (
-                <div className="w-7 h-7 rounded-full bg-[var(--color-amber-light)] flex items-center justify-center flex-none">
-                  <IconLock size={14} stroke={1.5} className="text-[var(--color-amber)]" />
-                </div>
-              ) : null}
-            </button>
-          )
-        })}
-        {filtered.length === 0 && (
+            </div>
+          ))
+        ) : filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-[14px] text-[var(--color-gray)]">No conversations found</p>
+            <p className="text-[14px] text-[var(--color-gray)]">No conversations yet</p>
+            <p className="text-[11px] text-[var(--color-gray)] mt-1">Confirmed bookings will appear here</p>
           </div>
+        ) : (
+          filtered.map(conv => {
+            const { canMessage } = getMessagingState(conv.status, conv.bookedStart, conv.bookedEnd, conv.service)
+            return (
+              <button
+                key={conv.bookingId}
+                onClick={() => onSelect(conv.bookingId)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                  activeId === conv.bookingId
+                    ? 'bg-[var(--color-amber-light)]'
+                    : 'hover:bg-[var(--color-gray-light)]'
+                }`}
+              >
+                <Avatar src={conv.avatarUrl} initials={conv.initials} size="lg" online={conv.online} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <p className="text-[14px] font-semibold text-[var(--color-dark)]">{conv.name}</p>
+                    <p className="text-[11px] text-[var(--color-gray)]">{conv.time}</p>
+                  </div>
+                  <p className="text-[12px] text-[var(--color-gray)] truncate mb-1">{conv.service}</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusDotColor(conv.status)}`} />
+                    <span className="text-[10px] text-[var(--color-gray)]">{statusLabel(conv.status)}</span>
+                  </div>
+                </div>
+                {canMessage && conv.unread > 0 ? (
+                  <div className="w-5 h-5 rounded-full bg-[var(--color-amber)] flex items-center justify-center flex-none">
+                    <span className="text-[10px] text-white font-bold">{conv.unread}</span>
+                  </div>
+                ) : !canMessage ? (
+                  <div className="w-7 h-7 rounded-full bg-[var(--color-amber-light)] flex items-center justify-center flex-none">
+                    <IconLock size={14} stroke={1.5} className="text-[var(--color-amber)]" />
+                  </div>
+                ) : null}
+              </button>
+            )
+          })
         )}
       </div>
     </div>
   )
 }
 
-
 // ─── ChatView ────────────────────────────────────────────────────────────────
 
-function ChatView({
-  conversationId,
-  onBack,
-}: {
-  conversationId: string
+function ChatView({ conv, myUserId, onBack }: {
+  conv: Conversation
+  myUserId: string
   onBack: () => void
 }) {
-  const conv = MOCK_CONVERSATIONS.find(c => c.id === conversationId)
   const [text, setText] = useState('')
-  const [messages, setMessages] = useState<Message[]>(conv?.messages ?? [])
+  const [messages, setMessages] = useState<Message[]>([])
+  const [loadingMsgs, setLoadingMsgs] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
-
-  // Re-evaluate every 30s so the window state stays live
   const [, setTick] = useState(0)
+
+  const { canMessage, reason, detail } = getMessagingState(conv.status, conv.bookedStart, conv.bookedEnd, conv.service)
+
+  // Fetch message history
+  useEffect(() => {
+    setLoadingMsgs(true)
+    api.get<ApiMessage[]>(`/bookings/${conv.bookingId}/messages`)
+      .then(res => {
+        setMessages(res.data.map(m => ({
+          id: m.id,
+          senderId: m.senderId === myUserId ? 'me' : 'other',
+          text: m.content,
+          time: fmtTime(new Date(m.sentAt)),
+        })))
+      })
+      .catch(() => setMessages([]))
+      .finally(() => setLoadingMsgs(false))
+  }, [conv.bookingId, myUserId])
+
+  // Socket room management
+  useEffect(() => {
+    const socket = getSocket()
+    socket.emit('join', conv.bookingId)
+
+    const onMessage = (msg: ApiMessage) => {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: msg.id,
+          senderId: msg.senderId === myUserId ? 'me' : 'other',
+          text: msg.content,
+          time: fmtTime(new Date(msg.sentAt)),
+        },
+      ])
+    }
+
+    socket.on('message', onMessage)
+
+    return () => {
+      socket.emit('leave', conv.bookingId)
+      socket.off('message', onMessage)
+    }
+  }, [conv.bookingId, myUserId])
+
+  // Re-evaluate messaging window state every 30s
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30_000)
     return () => clearInterval(id)
@@ -278,25 +264,12 @@ function ChatView({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  if (!conv) return null
-
-  const { canMessage, reason, detail } = getMessagingState(conv.booking)
-
   function send() {
     if (!text.trim()) return
-    setMessages(msgs => [
-      ...msgs,
-      {
-        id: String(Date.now()),
-        senderId: 'me',
-        text: text.trim(),
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ])
+    getSocket().emit('send', { bookingId: conv.bookingId, content: text.trim() })
     setText('')
   }
 
-  // Shared header used in both locked and open states
   const header = (
     <div className="bg-white border-b border-[var(--color-border)] px-4 py-3 flex items-center gap-3 flex-shrink-0">
       <button onClick={onBack} className="text-[var(--color-dark)] mr-1 md:hidden">
@@ -306,18 +279,17 @@ function ChatView({
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-semibold text-[var(--color-dark)]">{conv.name}</p>
         <div className="flex items-center gap-1.5">
-          <span className={`w-1.5 h-1.5 rounded-full flex-none ${statusDot(conv.booking).color}`} />
+          <span className={`w-1.5 h-1.5 rounded-full flex-none ${statusDotColor(conv.status)}`} />
           <p className="text-[11px] text-[var(--color-gray)]">
-            {conv.booking.service} · {fmtDate(conv.booking.startTime)} {fmtTime(conv.booking.startTime)}
+            {conv.service} · {fmtDate(conv.bookedStart)} {fmtTime(conv.bookedStart)}
           </p>
         </div>
       </div>
     </div>
   )
 
-  // Locked full-screen state
   if (!canMessage) {
-    const isEarlyLock = conv.booking.status === 'accepted'
+    const isEarlyLock = (conv.status === 'confirmed' || conv.status === 'in_progress')
     return (
       <div className="flex flex-col h-full">
         {header}
@@ -332,21 +304,21 @@ function ChatView({
           <div className="bg-white border border-[var(--color-border)] rounded-[12px] px-4 py-3 w-full max-w-[320px]">
             <div className="flex items-center gap-2 mb-1">
               <IconCalendar size={13} stroke={1.5} className="text-[var(--color-amber)]" />
-              <p className="text-[12px] font-semibold text-[var(--color-dark)]">{conv.booking.service}</p>
+              <p className="text-[12px] font-semibold text-[var(--color-dark)]">{conv.service}</p>
               <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                conv.booking.status === 'pending'
+                conv.status === 'pending'
                   ? 'bg-yellow-100 text-yellow-700'
                   : 'bg-[var(--color-success-bg)] text-[var(--color-success)]'
               }`}>
-                {statusDot(conv.booking).label}
+                {statusLabel(conv.status)}
               </span>
             </div>
             <p className="text-[12px] text-[var(--color-gray)]">
-              {fmtDate(conv.booking.startTime)} · {fmtTime(conv.booking.startTime)} – {fmtTime(conv.booking.endTime)}
+              {fmtDate(conv.bookedStart)} · {fmtTime(conv.bookedStart)} – {fmtTime(conv.bookedEnd)}
             </p>
             {isEarlyLock && (
               <p className="text-[11px] text-[var(--color-amber)] mt-1.5 font-medium">
-                Chat unlocks at {fmtTime(addHours(conv.booking.startTime, -3))}
+                Chat unlocks at {fmtTime(addHours(conv.bookedStart, -3))}
               </p>
             )}
           </div>
@@ -355,7 +327,6 @@ function ChatView({
     )
   }
 
-  // Open chat
   return (
     <div className="flex flex-col h-full">
       {header}
@@ -365,25 +336,35 @@ function ChatView({
           <div className="flex items-center gap-1.5 bg-white border border-[var(--color-border)] rounded-full px-3 py-1.5">
             <IconCalendar size={11} stroke={1.5} className="text-[var(--color-amber)]" />
             <span className="text-[10px] text-[var(--color-gray)]">
-              {conv.booking.service} · {fmtDate(conv.booking.startTime)}, {fmtTime(conv.booking.startTime)} – {fmtTime(conv.booking.endTime)}
+              {conv.service} · {fmtDate(conv.bookedStart)}, {fmtTime(conv.bookedStart)} – {fmtTime(conv.bookedEnd)}
             </span>
           </div>
         </div>
 
-        {messages.map(msg => (
-          <div key={msg.id} className={`flex ${msg.senderId === 'me' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[72%] rounded-[14px] px-3.5 py-2.5 ${
-              msg.senderId === 'me'
-                ? 'bg-[var(--color-amber)] text-white rounded-br-[4px]'
-                : 'bg-white border border-[var(--color-border)] text-[var(--color-dark)] rounded-bl-[4px]'
-            }`}>
-              <p className="text-[13px] leading-relaxed">{msg.text}</p>
-              <p className={`text-[10px] mt-0.5 ${msg.senderId === 'me' ? 'text-white/70' : 'text-[var(--color-gray)]'}`}>
-                {msg.time}
-              </p>
-            </div>
+        {loadingMsgs ? (
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+                <div className="h-9 w-40 rounded-[14px] bg-white border border-[var(--color-border)] animate-pulse" />
+              </div>
+            ))}
           </div>
-        ))}
+        ) : (
+          messages.map(msg => (
+            <div key={msg.id} className={`flex ${msg.senderId === 'me' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[72%] rounded-[14px] px-3.5 py-2.5 ${
+                msg.senderId === 'me'
+                  ? 'bg-[var(--color-amber)] text-white rounded-br-[4px]'
+                  : 'bg-white border border-[var(--color-border)] text-[var(--color-dark)] rounded-bl-[4px]'
+              }`}>
+                <p className="text-[13px] leading-relaxed">{msg.text}</p>
+                <p className={`text-[10px] mt-0.5 ${msg.senderId === 'me' ? 'text-white/70' : 'text-[var(--color-gray)]'}`}>
+                  {msg.time}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -432,6 +413,48 @@ export default function MessagesPage() {
   const { conversationId } = useParams()
   const navigate = useNavigate()
   const [activeId, setActiveId] = useState<string | null>(conversationId ?? null)
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [loading, setLoading] = useState(true)
+  const myUserId = useAuthStore(s => s.user?.id ?? '')
+
+  // Fetch conversations from bookings
+  const fetchConversations = useCallback(() => {
+    api.get<ApiBooking[]>('/bookings')
+      .then(res => {
+        const convs: Conversation[] = res.data
+          .filter(b => b.status !== 'cancelled' && b.companion)
+          .map(b => {
+            const name = b.companion!.displayName
+            const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+            const start = new Date(b.bookedStart)
+            return {
+              bookingId: b.id,
+              name,
+              initials,
+              avatarUrl: b.companion!.profilePhotoUrl,
+              online: b.companion!.isAvailableNow,
+              service: b.serviceType,
+              bookedStart: start,
+              bookedEnd: new Date(b.bookedEnd),
+              status: b.status,
+              lastMessage: b.serviceType,
+              time: start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+              unread: 0,
+            }
+          })
+        setConversations(convs)
+      })
+      .catch(() => setConversations([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetchConversations()
+    connectSocket()
+    return () => { disconnectSocket() }
+  }, [fetchConversations])
+
+  const activeConv = conversations.find(c => c.bookingId === activeId)
 
   function handleSelect(id: string) {
     setActiveId(id)
@@ -449,12 +472,17 @@ export default function MessagesPage() {
         w-full md:w-[320px] lg:w-[360px] flex-shrink-0
         ${activeId ? 'hidden md:flex' : 'flex'}
       `}>
-        <ConversationList onSelect={handleSelect} activeId={activeId} />
+        <ConversationList
+          conversations={conversations}
+          activeId={activeId}
+          onSelect={handleSelect}
+          loading={loading}
+        />
       </div>
 
       <div className={`flex-col flex-1 ${activeId ? 'flex' : 'hidden md:flex'}`}>
-        {activeId
-          ? <ChatView conversationId={activeId} onBack={handleBack} />
+        {activeId && activeConv
+          ? <ChatView conv={activeConv} myUserId={myUserId} onBack={handleBack} />
           : <EmptyChat />
         }
       </div>

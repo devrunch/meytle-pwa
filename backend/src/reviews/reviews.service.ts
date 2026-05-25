@@ -56,6 +56,7 @@ export class ReviewsService {
   async getForCompanion(companionId: string): Promise<Review[]> {
     return this.reviews.find({
       where: { companionId, isRemoved: false },
+      relations: { reviewer: true },
       order: { createdAt: 'DESC' },
       take: 20,
     });

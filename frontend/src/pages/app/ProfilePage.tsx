@@ -1,21 +1,12 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconEdit, IconStar, IconCalendarEvent, IconHeart, IconShield,
   IconBell, IconCreditCard, IconHelp, IconLogout, IconChevronRight,
   IconUsers, IconMapPin, IconCamera,
 } from '@tabler/icons-react'
-
-const MOCK_USER = {
-  name: 'You',
-  email: 'you@example.com',
-  initials: 'Y',
-  avatarUrl: null as string | null,
-  joinedYear: 2026,
-  totalBookings: 3,
-  rating: null as number | null,
-  location: 'Mumbai, India',
-  bio: 'Explorer, coffee enthusiast & weekend traveller. Always looking for meaningful experiences.',
-}
+import { useAuthStore } from '../../store/auth'
+import { api } from '../../lib/api'
 
 interface SettingRow {
   icon: React.ReactNode
@@ -59,11 +50,31 @@ function SettingsSection({ title, rows }: { title: string; rows: SettingRow[] })
 
 export default function ProfilePage() {
   const navigate = useNavigate()
+  const user = useAuthStore(s => s.user)
+  const logout = useAuthStore(s => s.logout)
+  const [bookingCount, setBookingCount] = useState<number | null>(null)
+  const [completedCount, setCompletedCount] = useState<number>(0)
+
+  useEffect(() => {
+    api.get<Array<{ status: string }>>('/bookings')
+      .then(res => {
+        setBookingCount(res.data.length)
+        setCompletedCount(res.data.filter(b => b.status === 'completed').length)
+      })
+      .catch(() => setBookingCount(0))
+  }, [])
+
+  const initials = user?.fullName?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) ?? '?'
+
+  function handleLogout() {
+    logout()
+    navigate('/login')
+  }
 
   return (
     <div className="min-h-full bg-[var(--color-bg)]">
 
-      {/* ── Header — gold strip containing avatar + info ── */}
+      {/* ── Header — gold strip ── */}
       <div className="relative overflow-hidden" style={{ background: 'var(--gradient-gold)' }}>
         <div className="absolute -right-10 -top-10 w-[180px] h-[180px] rounded-full border border-white/20 hidden md:block" />
         <div className="absolute right-24 bottom-0 w-[90px] h-[90px] rounded-full border border-white/10 hidden md:block" />
@@ -75,9 +86,9 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="relative flex-shrink-0">
                 <div className="w-[52px] h-[52px] md:w-[64px] md:h-[64px] rounded-full border-[3px] border-white/60 md:border-white shadow overflow-hidden bg-white/20 flex items-center justify-center">
-                  {MOCK_USER.avatarUrl
-                    ? <img src={MOCK_USER.avatarUrl} alt={MOCK_USER.name} className="w-full h-full object-cover" />
-                    : <span className="text-[22px] md:text-[26px] font-bold text-white">{MOCK_USER.initials}</span>
+                  {user?.avatarUrl
+                    ? <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
+                    : <span className="text-[22px] md:text-[26px] font-bold text-white">{initials}</span>
                   }
                 </div>
                 <button className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow">
@@ -86,13 +97,12 @@ export default function ProfilePage() {
               </div>
               {/* Info */}
               <div>
-                <h1 className="text-[17px] md:text-[20px] font-semibold text-white leading-none">{MOCK_USER.name}</h1>
-                <p className="text-[11px] text-white/70 mt-0.5">{MOCK_USER.email}</p>
+                <h1 className="text-[17px] md:text-[20px] font-semibold text-white leading-none">{user?.fullName ?? 'You'}</h1>
+                <p className="text-[11px] text-white/70 mt-0.5">{user?.email ?? ''}</p>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-[10px] text-white/60 flex items-center gap-1">
-                    <IconMapPin size={10} stroke={1.5} />{MOCK_USER.location}
+                    <IconMapPin size={10} stroke={1.5} />Delhi NCR
                   </span>
-                  <span className="text-[10px] text-white/60 hidden md:block">Member since {MOCK_USER.joinedYear}</span>
                 </div>
               </div>
             </div>
@@ -117,9 +127,9 @@ export default function ProfilePage() {
               <p className="text-[11px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-3">Activity</p>
               <div className="grid grid-cols-3 gap-2.5">
                 {[
-                  { label: 'Bookings', value: MOCK_USER.totalBookings, icon: <IconCalendarEvent size={15} stroke={1.5} color="var(--color-amber)" /> },
-                  { label: 'Reviews',  value: 0,                        icon: <IconStar size={15} stroke={1.5} color="var(--color-amber)" /> },
-                  { label: 'Rating',   value: MOCK_USER.rating?.toFixed(1) ?? '—', icon: <IconHeart size={15} stroke={1.5} color="var(--color-amber)" /> },
+                  { label: 'Bookings', value: bookingCount ?? '—', icon: <IconCalendarEvent size={15} stroke={1.5} color="var(--color-amber)" /> },
+                  { label: 'Completed', value: completedCount, icon: <IconStar size={15} stroke={1.5} color="var(--color-amber)" /> },
+                  { label: 'Reviews',  value: 0,               icon: <IconHeart size={15} stroke={1.5} color="var(--color-amber)" /> },
                 ].map(stat => (
                   <div key={stat.label} className="flex flex-col items-center gap-1.5 bg-[var(--color-gray-light)] rounded-[10px] py-3">
                     {stat.icon}
@@ -128,11 +138,6 @@ export default function ProfilePage() {
                   </div>
                 ))}
               </div>
-              {MOCK_USER.bio && (
-                <p className="text-[12px] text-[var(--color-gray)] leading-relaxed mt-4 pt-4 border-t border-[var(--color-border)]">
-                  {MOCK_USER.bio}
-                </p>
-              )}
             </div>
 
             {/* Become a Companion CTA */}
@@ -160,8 +165,8 @@ export default function ProfilePage() {
               </div>
               <div className="flex flex-col gap-2">
                 {[
-                  { label: 'Email',        done: true  },
-                  { label: 'Phone',        done: false },
+                  { label: 'Email',         done: true  },
+                  { label: 'Phone',         done: false },
                   { label: 'Government ID', done: false },
                 ].map(v => (
                   <div key={v.label} className="flex items-center justify-between">
@@ -201,7 +206,7 @@ export default function ProfilePage() {
               title="Support"
               rows={[
                 { icon: <IconHelp size={16} stroke={1.5} />,   label: 'Help & Support', onClick: () => {} },
-                { icon: <IconLogout size={16} stroke={1.5} />, label: 'Log Out', danger: true, onClick: () => navigate('/login') },
+                { icon: <IconLogout size={16} stroke={1.5} />, label: 'Log Out', danger: true, onClick: handleLogout },
               ]}
             />
             <p className="text-center text-[11px] text-[var(--color-gray)]">Meytle v1.0.0</p>

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconTrendingUp, IconCalendarEvent, IconStar, IconCurrencyRupee,
@@ -6,9 +6,68 @@ import {
   IconEdit, IconUsers, IconShieldCheck, IconArrowUpRight,
 } from '@tabler/icons-react'
 import { Badge } from '../../components/ui'
-import { MOCK_REQUESTS, type BookingRequest, type RequestStatus } from '../../data/mockBookings'
+import { api } from '../../lib/api'
 
-const STATS = [
+type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+
+interface ApiBooking {
+  id: string
+  serviceType: string
+  status: BookingStatus
+  bookedStart: string
+  bookedEnd: string
+  bookedDurationMinutes: number
+  meetingSpotText: string | null
+  amountPaisa: number
+  customNote: string | null
+  isCustomRequest: boolean
+  user: { id: string; fullName: string; avatarUrl: string | null }
+}
+
+interface BookingRequest {
+  id: string
+  userName: string
+  userInitials: string
+  service: string
+  date: string
+  time: string
+  endTime: string
+  duration: number
+  location: string
+  status: BookingStatus
+  total: number
+  note: string | null
+  isCustom: boolean
+}
+
+const SERVICE_LABELS: Record<string, string> = {
+  coffee: 'Coffee Dates', dining: 'Fine Dining', concert: 'Concerts',
+  travel: 'Travel', fitness: 'Fitness', culture: 'Cultural Events',
+  nature: 'Nature Walks', movies: 'Movies', shopping: 'Shopping', gaming: 'Gaming',
+}
+
+function toRequest(b: ApiBooking): BookingRequest {
+  const start = new Date(b.bookedStart)
+  const end = new Date(b.bookedEnd)
+  const name = b.user?.fullName ?? 'User'
+  return {
+    id: b.id,
+    userName: name,
+    userInitials: name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2),
+    service: SERVICE_LABELS[b.serviceType] ?? b.serviceType,
+    date: start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: start.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    endTime: end.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    duration: Math.round(b.bookedDurationMinutes / 60),
+    location: b.meetingSpotText ?? '—',
+    status: b.status,
+    total: Math.round(b.amountPaisa / 100),
+    note: b.customNote,
+    isCustom: b.isCustomRequest,
+  }
+}
+
+const STATS_CONFIG = [
   {
     label: 'This Month',
     value: '₹12,400',
@@ -17,15 +76,6 @@ const STATS = [
     icon: <IconCurrencyRupee size={20} stroke={1.5} />,
     bg: 'bg-[var(--color-amber-light)]',
     iconColor: 'text-[var(--color-amber)]',
-  },
-  {
-    label: 'Bookings',
-    value: '8',
-    sub: '3 upcoming',
-    positive: true,
-    icon: <IconCalendarEvent size={20} stroke={1.5} />,
-    bg: 'bg-[var(--color-success-bg)]',
-    iconColor: 'text-[var(--color-success)]',
   },
   {
     label: 'Rating',
@@ -109,7 +159,6 @@ function SwipeCard({
 
   return (
     <div className="relative w-full" style={{ minHeight: 340 }}>
-      {/* Stack shadow cards */}
       {stackSize > 2 && (
         <div className="absolute inset-x-3 bottom-0 h-full rounded-[22px] bg-[var(--color-border)] scale-[0.93] origin-bottom" style={{ zIndex: 0 }} />
       )}
@@ -117,7 +166,6 @@ function SwipeCard({
         <div className="absolute inset-x-1.5 bottom-0 h-full rounded-[22px] bg-white border border-[var(--color-border)] scale-[0.96] origin-bottom shadow-sm" style={{ zIndex: 1 }} />
       )}
 
-      {/* Main swipeable card */}
       <div
         className="relative w-full rounded-[22px] bg-white border border-[var(--color-border)] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.1)] select-none"
         style={{
@@ -130,7 +178,6 @@ function SwipeCard({
         onTouchMove={touchMove}
         onTouchEnd={touchEnd}
       >
-        {/* Accept stamp overlay */}
         <div
           className="absolute inset-0 z-10 flex items-start justify-start p-5 pointer-events-none rounded-[22px]"
           style={{ opacity: acceptAlpha, background: 'rgba(34,197,94,0.12)' }}
@@ -139,7 +186,6 @@ function SwipeCard({
             <span className="text-[#22c55e] font-black text-[18px] tracking-widest">ACCEPT</span>
           </div>
         </div>
-        {/* Decline stamp overlay */}
         <div
           className="absolute inset-0 z-10 flex items-start justify-end p-5 pointer-events-none rounded-[22px]"
           style={{ opacity: declineAlpha, background: 'rgba(239,68,68,0.12)' }}
@@ -149,14 +195,12 @@ function SwipeCard({
           </div>
         </div>
 
-        {/* Amber header */}
         <div className="h-[88px] relative" style={{ background: 'linear-gradient(135deg, #FFF3CC 0%, #FFE066 100%)' }}>
           <div className="absolute -bottom-8 left-4 w-[64px] h-[64px] rounded-full bg-white shadow-[0_4px_16px_rgba(232,160,0,0.25)] border-4 border-white flex items-center justify-center">
             <span className="text-[20px] font-black text-[var(--color-amber-dark)]">{request.userInitials}</span>
           </div>
         </div>
 
-        {/* Body */}
         <div className="pt-12 px-4 pb-3">
           <div className="flex items-start justify-between mb-1">
             <p className="text-[20px] font-bold text-[var(--color-dark)] leading-tight">{request.userName}</p>
@@ -190,7 +234,6 @@ function SwipeCard({
             View full details →
           </button>
 
-          {/* Big accept / decline */}
           <div className="flex gap-3 pt-2 border-t border-[var(--color-border)]">
             <button
               onClick={triggerDecline}
@@ -215,8 +258,12 @@ function SwipeCard({
 
 // ── Desktop / non-pending list card ─────────────────────────────────────────
 
-const STATUS_VARIANT: Record<RequestStatus, 'warning' | 'success' | 'default' | 'error'> = {
-  pending: 'warning', confirmed: 'success', completed: 'default', declined: 'error',
+const STATUS_VARIANT: Record<BookingStatus, 'warning' | 'success' | 'default' | 'error'> = {
+  pending: 'warning',
+  confirmed: 'success',
+  in_progress: 'success',
+  completed: 'default',
+  cancelled: 'error',
 }
 
 function RequestCard({
@@ -231,13 +278,14 @@ function RequestCard({
   onView: () => void
 }) {
   const isPending = request.status === 'pending'
+  const statusLabel = request.status === 'in_progress' ? 'In Progress'
+    : request.status.charAt(0).toUpperCase() + request.status.slice(1)
 
   return (
     <div
       onClick={onView}
       className="group bg-white rounded-[16px] border border-[var(--color-border)] overflow-hidden hover:border-[var(--color-amber)] hover:shadow-[0_4px_20px_rgba(201,146,10,0.1)] transition-all cursor-pointer"
     >
-      {/* Amber accent header */}
       <div className="h-1.5 w-full" style={{ background: isPending ? 'var(--gradient-gold)' : 'var(--color-gray-light)' }} />
 
       <div className="p-4">
@@ -252,7 +300,7 @@ function RequestCard({
             </span>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <Badge variant={STATUS_VARIANT[request.status]} label={request.status.charAt(0).toUpperCase() + request.status.slice(1)} />
+            <Badge variant={STATUS_VARIANT[request.status]} label={statusLabel} />
             <p className="text-[14px] font-bold text-[var(--color-dark)]">₹{request.total.toLocaleString()}</p>
           </div>
         </div>
@@ -301,45 +349,85 @@ function RequestCard({
 
 export default function CompanionDashboard() {
   const navigate = useNavigate()
-  const [requests, setRequests] = useState(MOCK_REQUESTS)
+  const [requests, setRequests] = useState<BookingRequest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [companionName, setCompanionName] = useState('')
+  const [companionAvatar, setCompanionAvatar] = useState<string | null>(null)
   const [tab, setTab] = useState<'requests' | 'upcoming' | 'completed'>('requests')
 
-  function accept(id: string) {
-    setRequests(rs => rs.map(r => r.id === id ? { ...r, status: 'confirmed' as const } : r))
-  }
-  function decline(id: string) {
-    setRequests(rs => rs.map(r => r.id === id ? { ...r, status: 'declined' as const } : r))
+  useEffect(() => {
+    Promise.all([
+      api.get<ApiBooking[]>('/bookings/companion'),
+      api.get<{ displayName: string; profilePhotoUrl: string | null }>('/companions/me/profile'),
+    ]).then(([bookingsRes, profileRes]) => {
+      setRequests(bookingsRes.data.map(toRequest))
+      setCompanionName(profileRes.data.displayName)
+      setCompanionAvatar(profileRes.data.profilePhotoUrl)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  async function accept(id: string) {
+    try {
+      await api.patch(`/bookings/${id}/accept`)
+      setRequests(rs => rs.map(r => r.id === id ? { ...r, status: 'confirmed' as const } : r))
+    } catch {}
   }
 
-  const pending   = requests.filter(r => r.status === 'pending')
-  const tabList   =
+  async function decline(id: string) {
+    try {
+      await api.patch(`/bookings/${id}/decline`)
+      setRequests(rs => rs.map(r => r.id === id ? { ...r, status: 'cancelled' as const } : r))
+    } catch {}
+  }
+
+  const pending = requests.filter(r => r.status === 'pending')
+  const tabList =
     tab === 'requests'  ? requests.filter(r => r.status === 'pending') :
-    tab === 'upcoming'  ? requests.filter(r => r.status === 'confirmed') :
+    tab === 'upcoming'  ? requests.filter(r => r.status === 'confirmed' || r.status === 'in_progress') :
                           requests.filter(r => r.status === 'completed')
+
+  const nameInitial = companionName ? companionName[0].toUpperCase() : '?'
+  const displayName = companionName ? `${companionName}'s Dashboard` : 'Dashboard'
+
+  const bookingsCount = requests.filter(r => r.status === 'confirmed' || r.status === 'in_progress').length
+  const statsWithCounts = [
+    ...STATS_CONFIG.slice(0, 1),
+    {
+      label: 'Bookings',
+      value: String(requests.length || '—'),
+      sub: `${bookingsCount} upcoming`,
+      positive: true,
+      icon: <IconCalendarEvent size={20} stroke={1.5} />,
+      bg: 'bg-[var(--color-success-bg)]',
+      iconColor: 'text-[var(--color-success)]',
+    },
+    ...STATS_CONFIG.slice(1),
+  ]
 
   return (
     <div className="min-h-full bg-[var(--color-bg)]">
 
-      {/* ── Header — gold on desktop, white on mobile ── */}
+      {/* ── Header ── */}
       <div className="relative overflow-hidden md:mb-0" style={{ background: 'var(--gradient-gold)' }}>
-        {/* Decorative rings inside banner */}
         <div className="absolute -right-10 -top-10 w-[180px] h-[180px] rounded-full border border-white/20 hidden md:block" />
         <div className="absolute right-20 -bottom-8 w-[100px] h-[100px] rounded-full border border-white/15 hidden md:block" />
         <div className="absolute left-1/3 -top-6 w-[80px] h-[80px] rounded-full border border-white/10 hidden md:block" />
 
         <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10 py-4 md:py-5">
           <div className="flex items-center justify-between gap-4">
-            {/* Avatar + info */}
             <div className="flex items-center gap-3 md:gap-4">
               <div className="relative flex-shrink-0">
                 <div className="w-[52px] h-[52px] md:w-[64px] md:h-[64px] rounded-full border-[3px] border-white/60 md:border-white shadow overflow-hidden bg-white/20 flex items-center justify-center">
-                  <span className="text-[22px] md:text-[26px] font-bold text-white">A</span>
+                  {companionAvatar
+                    ? <img src={companionAvatar} alt={companionName} className="w-full h-full object-cover" />
+                    : <span className="text-[22px] md:text-[26px] font-bold text-white">{nameInitial}</span>
+                  }
                 </div>
                 <div className="absolute bottom-0 right-0 w-3 h-3 md:w-3.5 md:h-3.5 rounded-full bg-[#4ade80] border-2 border-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-[17px] md:text-[21px] font-semibold text-white leading-none">Aanya's Dashboard</h1>
+                  <h1 className="text-[17px] md:text-[21px] font-semibold text-white leading-none">{displayName}</h1>
                   <div className="flex items-center gap-1 bg-white/20 rounded-full px-2 py-0.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-[#4ade80]" />
                     <span className="text-[10px] text-white font-semibold">Active</span>
@@ -351,12 +439,11 @@ export default function CompanionDashboard() {
                   )}
                 </div>
                 <p className="text-[11px] text-white/70 mt-1 flex items-center gap-1">
-                  <IconMapPin size={10} stroke={1.5} /> Bandra West · Mumbai
+                  <IconMapPin size={10} stroke={1.5} /> Delhi NCR
                 </p>
               </div>
             </div>
 
-            {/* Quick actions — white ghost buttons on desktop */}
             <div className="hidden md:flex items-center gap-2 flex-shrink-0">
               {[
                 { label: 'Edit Profile',  icon: <IconEdit size={13} stroke={1.5} />,          onClick: () => navigate('/app/companion/account') },
@@ -378,7 +465,6 @@ export default function CompanionDashboard() {
 
       <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10 py-4">
 
-        {/* Mobile quick actions */}
         <div className="flex gap-2 my-3 md:hidden">
           {[
             { label: 'Edit Profile',  icon: <IconEdit size={13} stroke={1.5} />,          onClick: () => navigate('/app/companion/account') },
@@ -401,9 +487,8 @@ export default function CompanionDashboard() {
           {/* ── Left: stats + earnings ── */}
           <div className="flex flex-col gap-4">
 
-            {/* Stats 2×2 */}
             <div className="grid grid-cols-2 gap-3">
-              {STATS.map(stat => (
+              {statsWithCounts.map(stat => (
                 <div key={stat.label} className="bg-white rounded-[14px] border border-[var(--color-border)] p-4">
                   <div className={`w-9 h-9 rounded-[10px] ${stat.bg} flex items-center justify-center mb-3`}>
                     <span className={stat.iconColor}>{stat.icon}</span>
@@ -417,14 +502,12 @@ export default function CompanionDashboard() {
               ))}
             </div>
 
-            {/* Earnings chart */}
             <div className="bg-white rounded-[14px] border border-[var(--color-border)] p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[14px] font-semibold text-[var(--color-dark)]">Earnings Overview</h3>
                 <span className="text-[11px] text-[var(--color-amber)] font-medium">This Week</span>
               </div>
 
-              {/* Bar chart */}
               <div className="flex items-end gap-1.5 h-[80px] mb-3">
                 {CHART_DATA.map(({ day, val }, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -452,7 +535,6 @@ export default function CompanionDashboard() {
               </div>
             </div>
 
-            {/* Profile strength card */}
             <div className="bg-white rounded-[14px] border border-[var(--color-border)] p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[13px] font-semibold text-[var(--color-dark)]">Profile Strength</h3>
@@ -489,12 +571,11 @@ export default function CompanionDashboard() {
           {/* ── Right: booking requests ── */}
           <div className="flex flex-col gap-4">
 
-            {/* Tabs */}
             <div className="bg-white rounded-[14px] border border-[var(--color-border)] overflow-hidden">
               <div className="flex border-b border-[var(--color-border)]">
                 {([
                   { key: 'requests',  label: 'Requests',  count: requests.filter(r => r.status === 'pending').length },
-                  { key: 'upcoming',  label: 'Upcoming',  count: requests.filter(r => r.status === 'confirmed').length },
+                  { key: 'upcoming',  label: 'Upcoming',  count: requests.filter(r => r.status === 'confirmed' || r.status === 'in_progress').length },
                   { key: 'completed', label: 'Completed', count: requests.filter(r => r.status === 'completed').length },
                 ] as const).map(t => (
                   <button
@@ -518,9 +599,14 @@ export default function CompanionDashboard() {
                 ))}
               </div>
 
-              {/* Request list */}
               <div className="p-4">
-                {tabList.length === 0 ? (
+                {loading ? (
+                  <div className="flex flex-col gap-3">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-[120px] rounded-[14px] bg-[var(--color-gray-light)] animate-pulse" />
+                    ))}
+                  </div>
+                ) : tabList.length === 0 ? (
                   <div className="py-14 text-center">
                     <div className="w-14 h-14 rounded-full bg-[var(--color-gray-light)] flex items-center justify-center mx-auto mb-3">
                       <IconCalendarEvent size={24} stroke={1.2} className="text-[var(--color-gray)]" />
@@ -532,7 +618,6 @@ export default function CompanionDashboard() {
                   </div>
                 ) : (
                   <>
-                    {/* Mobile pending — Tinder stack (hidden on md+) */}
                     {tab === 'requests' && (
                       <div className="md:hidden flex flex-col items-center gap-3">
                         <p className="text-[12px] text-[var(--color-gray)]">
@@ -549,7 +634,6 @@ export default function CompanionDashboard() {
                       </div>
                     )}
 
-                    {/* Desktop grid (always) + mobile non-pending */}
                     <div className={`grid md:grid-cols-1 xl:grid-cols-2 gap-3 ${tab === 'requests' ? 'hidden md:grid' : ''}`}>
                       {tabList.map(request => (
                         <RequestCard

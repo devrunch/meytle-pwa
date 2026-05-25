@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconArrowLeft, IconCheck, IconCalendar, IconClock, IconCreditCard,
@@ -7,8 +7,27 @@ import {
 } from '@tabler/icons-react'
 import { Avatar } from '../../components/ui'
 import LocationPickerMap from '../../components/ui/LocationPickerMap'
-import { MOCK_COMPANIONS } from '../../data/mock'
-import type { Service } from '../../types'
+import { api } from '../../lib/api'
+
+interface ApiProfile {
+  id: string
+  displayName: string
+  profilePhotoUrl: string
+  hourlyRatePaisa: number
+  ratingAvg: number | null
+  ratingCount: number
+  serviceAreaCentre: string | null
+  serviceAreaRadiusKm: number
+}
+
+interface ApiService { id: string; serviceType: string }
+
+interface ApiAvailability {
+  id: string
+  dayOfWeek: number  // 0=Monday … 6=Sunday
+  fromTime: string   // 'HH:MM:SS'
+  toTime: string
+}
 
 interface LngLat { lng: number; lat: number }
 
@@ -16,45 +35,57 @@ const TOTAL_STEPS = 4
 const CALENDAR_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const DURATION_OPTIONS = [1, 2, 3, 4]
-const JS_DAY_TO_KEY = ['sun','mon','tue','wed','thu','fri','sat'] as const
 
-const MOCK_SCHEDULE = {
-  days: new Set(['mon','tue','wed','thu','fri','sat'] as const),
-  from: '8:00 AM',
-  to:   '9:00 PM',
+const SERVICE_LABELS: Record<string, string> = {
+  coffee: 'Coffee Dates', dining: 'Fine Dining', concert: 'Concerts',
+  travel: 'Travel', fitness: 'Fitness', culture: 'Cultural Events',
+  nature: 'Nature Walks', movies: 'Movies', shopping: 'Shopping', gaming: 'Gaming',
 }
 
-function parseHour(timeStr: string): number {
-  const [timePart, period] = timeStr.split(' ')
-  let [h] = timePart.split(':').map(Number)
+// Convert time string 'HH:MM:SS' to hour number
+function timeToHour(t: string): number {
+  return parseInt(t.split(':')[0], 10)
+}
+
+// Convert 24h hour to display slot "H:00 AM/PM"
+function hourToSlot(h: number): string {
+  const period = h < 12 ? 'AM' : 'PM'
+  const display = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return `${display}:00 ${period}`
+}
+
+function parseSlot(slot: string): number {
+  const [timePart, period] = slot.split(' ')
+  let h = parseInt(timePart.split(':')[0], 10)
   if (period === 'PM' && h !== 12) h += 12
   if (period === 'AM' && h === 12) h = 0
   return h
 }
 
-function generateSlots(from: string, to: string): string[] {
-  const start = parseHour(from)
-  const end = parseHour(to)
-  const slots: string[] = []
-  for (let h = start; h < end; h++) {
-    const period = h < 12 ? 'AM' : 'PM'
-    const display = h === 0 ? 12 : h > 12 ? h - 12 : h
-    slots.push(`${display}:00 ${period}`)
-  }
-  return slots
+// DB dayOfWeek: 0=Monday, 6=Sunday → JS getDay(): 0=Sunday, 6=Saturday
+// DB 0(Mon)→JS 1, DB 1(Tue)→JS 2 ... DB 6(Sun)→JS 0
+function dbDayToJsDay(dbDay: number): number {
+  return (dbDay + 1) % 7
 }
 
 function getDaysInMonth(year: number, month: number) { return new Date(year, month + 1, 0).getDate() }
 function getFirstDayOfMonth(year: number, month: number) { return new Date(year, month, 1).getDay() }
 
-// ─── Calendar ────────────────────────────────────────────────────────────────
+function parseEwktCentre(ewkt: string | null): LngLat | null {
+  if (!ewkt) return null
+  const m = ewkt.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/)
+  if (!m) return null
+  return { lng: parseFloat(m[1]), lat: parseFloat(m[2]) }
+}
+
+// ── MiniCalendar ──────────────────────────────────────────────────────────────
 
 function MiniCalendar({
-  selected, onChange, schedule,
+  selected, onChange, availableDays,
 }: {
   selected: Date | null
   onChange: (d: Date, available: boolean) => void
-  schedule: typeof MOCK_SCHEDULE
+  availableDays: Set<number>  // JS day numbers 0–6
 }) {
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
@@ -76,32 +107,22 @@ function MiniCalendar({
   }
   function isAvailable(day: number) {
     const date = new Date(viewYear, viewMonth, day)
-    return schedule.days.has(JS_DAY_TO_KEY[date.getDay()] as never)
+    return availableDays.has(date.getDay())
   }
 
   return (
     <div className="bg-white rounded-[16px] border border-[var(--color-border)] overflow-hidden">
-      {/* Month nav */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
-        <button
-          onClick={prev}
-          className="w-8 h-8 rounded-[8px] hover:bg-[var(--color-gray-light)] flex items-center justify-center transition-colors"
-        >
+        <button onClick={prev} className="w-8 h-8 rounded-[8px] hover:bg-[var(--color-gray-light)] flex items-center justify-center transition-colors">
           <IconChevronLeft size={16} stroke={2} className="text-[var(--color-dark)]" />
         </button>
-        <p className="text-[15px] font-bold text-[var(--color-dark)]">
-          {MONTHS[viewMonth]} {viewYear}
-        </p>
-        <button
-          onClick={next}
-          className="w-8 h-8 rounded-[8px] hover:bg-[var(--color-gray-light)] flex items-center justify-center transition-colors"
-        >
+        <p className="text-[15px] font-bold text-[var(--color-dark)]">{MONTHS[viewMonth]} {viewYear}</p>
+        <button onClick={next} className="w-8 h-8 rounded-[8px] hover:bg-[var(--color-gray-light)] flex items-center justify-center transition-colors">
           <IconChevronRight size={16} stroke={2} className="text-[var(--color-dark)]" />
         </button>
       </div>
 
       <div className="px-4 py-3">
-        {/* Legend */}
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-[4px] bg-[var(--color-amber-light)] border border-[var(--color-amber)]/30 inline-block" />
@@ -113,14 +134,12 @@ function MiniCalendar({
           </div>
         </div>
 
-        {/* Day headers */}
         <div className="grid grid-cols-7 mb-1">
           {CALENDAR_DAYS.map(d => (
             <div key={d} className="text-center text-[11px] font-semibold text-[var(--color-gray)] py-1">{d}</div>
           ))}
         </div>
 
-        {/* Day cells */}
         <div className="grid grid-cols-7 gap-1">
           {cells.map((day, i) => {
             if (!day) return <div key={i} />
@@ -135,7 +154,6 @@ function MiniCalendar({
             const isToday = today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === day
 
             let cellClass = 'relative h-10 w-full rounded-[8px] text-[13px] font-medium transition-all flex items-center justify-center '
-
             if (isSelected) {
               cellClass += 'bg-[var(--color-amber)] text-white font-bold shadow-[0_2px_8px_rgba(232,160,0,0.4)]'
             } else if (isPast) {
@@ -168,7 +186,7 @@ function MiniCalendar({
   )
 }
 
-// ─── Custom booking panel ─────────────────────────────────────────────────────
+// ── CustomBookingPanel ────────────────────────────────────────────────────────
 
 const CUSTOM_TIME_OPTIONS = [
   '6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM',
@@ -189,25 +207,18 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
     setShowCustomInput(true)
     onChange({ ...value, tip: 0, tipCustom: '' })
   }
-  function handleCustomTipChange(raw: string) {
-    const num = parseInt(raw.replace(/\D/g, ''), 10)
-    onChange({ ...value, tipCustom: raw, tip: isNaN(num) ? 0 : num })
-  }
 
   return (
     <div className="bg-white rounded-[16px] border border-[var(--color-amber)]/40 p-5 flex flex-col gap-4">
       <div className="flex items-start gap-3 bg-[var(--color-amber-light)] rounded-[10px] p-3">
         <IconAlertCircle size={16} stroke={1.5} className="text-[var(--color-amber)] flex-none mt-0.5" />
         <p className="text-[12px] text-[var(--color-amber-dark)] leading-relaxed">
-          This date isn't in the companion's regular schedule. A tip is required to send a custom request — they'll confirm if available.
+          This date isn't in the companion's regular schedule. A tip is required to send a custom request.
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {[
-          { label: 'Start time', key: 'from' as const },
-          { label: 'End time',   key: 'to'   as const },
-        ].map(({ label, key }) => (
+        {([{ label: 'Start time', key: 'from' as const }, { label: 'End time', key: 'to' as const }]).map(({ label, key }) => (
           <div key={key}>
             <label className="text-[11px] font-semibold text-[var(--color-gray)] block mb-1.5 uppercase tracking-wide">{label}</label>
             <select
@@ -226,9 +237,7 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
           <label className="text-[11px] font-semibold text-[var(--color-gray)] uppercase tracking-wide">
             Tip for companion <span className="text-[var(--color-error)]">*</span>
           </label>
-          {value.tip > 0 && (
-            <span className="text-[12px] font-bold text-[var(--color-amber)]">₹{value.tip.toLocaleString()} added</span>
-          )}
+          {value.tip > 0 && <span className="text-[12px] font-bold text-[var(--color-amber)]">₹{value.tip.toLocaleString()} added</span>}
         </div>
         <div className="flex gap-2 mb-2">
           {TIP_PRESETS.map(amt => (
@@ -242,9 +251,7 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
           ))}
           <button type="button" onClick={openCustom}
             className={`flex-1 h-10 rounded-[10px] border text-[13px] font-semibold transition-colors ${
-              showCustomInput
-                ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)] text-[var(--color-amber-dark)]'
-                : 'border-[var(--color-border)] text-[var(--color-gray)] hover:border-[var(--color-amber)]'
+              showCustomInput ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)] text-[var(--color-amber-dark)]' : 'border-[var(--color-border)] text-[var(--color-gray)] hover:border-[var(--color-amber)]'
             }`}
           >Custom</button>
         </div>
@@ -252,13 +259,16 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[var(--color-gray)]">₹</span>
             <input autoFocus type="text" inputMode="numeric" value={value.tipCustom}
-              onChange={e => handleCustomTipChange(e.target.value)}
+              onChange={e => {
+                const raw = e.target.value
+                const num = parseInt(raw.replace(/\D/g, ''), 10)
+                onChange({ ...value, tipCustom: raw, tip: isNaN(num) ? 0 : num })
+              }}
               placeholder="Enter amount"
               className="w-full h-10 pl-7 pr-3 rounded-[10px] border border-[var(--color-amber)] bg-white text-[13px] font-medium text-[var(--color-dark)] placeholder:text-[var(--color-gray)] focus:outline-none"
             />
           </div>
         )}
-        <p className="text-[11px] text-[var(--color-gray)] mt-1.5">Tip goes directly to the companion for accommodating your request.</p>
       </div>
 
       <div>
@@ -272,14 +282,12 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
   )
 }
 
-// ─── Companion sidebar (desktop) ──────────────────────────────────────────────
+// ── CompanionSidebar ──────────────────────────────────────────────────────────
 
-function CompanionSidebar({
-  companion, step, selectedService, selectedDate, selectedTime, duration, location, total,
-}: {
-  companion: (typeof MOCK_COMPANIONS)[0]
+function CompanionSidebar({ profile, step, selectedService, selectedDate, selectedTime, duration, location, total }: {
+  profile: ApiProfile
   step: number
-  selectedService: Service | null
+  selectedService: string | null
   selectedDate: Date | null
   selectedTime: string | null
   duration: number
@@ -287,27 +295,29 @@ function CompanionSidebar({
   total: number
 }) {
   const steps = ['Choose Service', 'Date & Time', 'Meeting Spot', 'Confirm & Pay']
+  const initials = profile.displayName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
   return (
     <div className="flex flex-col gap-4 sticky top-6">
-      {/* Companion card */}
       <div className="bg-white rounded-[16px] border border-[var(--color-border)] p-5">
         <div className="flex items-center gap-3 mb-4 pb-4 border-b border-[var(--color-border)]">
-          <Avatar src={companion.avatarUrl ?? undefined} initials={companion.initials} size="xl" />
+          <Avatar src={profile.profilePhotoUrl} initials={initials} size="xl" />
           <div>
-            <p className="text-[16px] font-bold text-[var(--color-dark)]">{companion.name}</p>
-            <p className="text-[12px] text-[var(--color-gray)]">{companion.neighbourhood}, {companion.city}</p>
-            <div className="flex items-center gap-1 mt-1">
-              <IconStar size={11} stroke={1.5} className="text-[var(--color-amber)] fill-[var(--color-amber)]" />
-              <span className="text-[12px] font-semibold text-[var(--color-dark)]">{companion.rating}</span>
-              <span className="text-[11px] text-[var(--color-gray)] ml-0.5">({companion.reviewCount})</span>
-            </div>
+            <p className="text-[16px] font-bold text-[var(--color-dark)]">{profile.displayName}</p>
+            <p className="text-[12px] text-[var(--color-gray)]">Delhi NCR</p>
+            {(profile.ratingAvg ?? 0) > 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                <IconStar size={11} stroke={1.5} className="text-[var(--color-amber)] fill-[var(--color-amber)]" />
+                <span className="text-[12px] font-semibold text-[var(--color-dark)]">{(profile.ratingAvg ?? 0).toFixed(1)}</span>
+                <span className="text-[11px] text-[var(--color-gray)] ml-0.5">({profile.ratingCount})</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-col gap-2.5">
           {selectedService && (
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-[var(--color-gray)]">Service</span>
-              <span className="font-semibold text-[var(--color-dark)]">{selectedService.label}</span>
+              <span className="font-semibold text-[var(--color-dark)]">{SERVICE_LABELS[selectedService] ?? selectedService}</span>
             </div>
           )}
           {selectedDate && (
@@ -331,21 +341,20 @@ function CompanionSidebar({
             </div>
           )}
           {step >= 2 && selectedTime && (
-            <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
-              <span className="text-[13px] text-[var(--color-gray)]">Rate</span>
-              <span className="text-[13px] font-semibold text-[var(--color-dark)]">₹{companion.priceFrom.toLocaleString()}/hr</span>
-            </div>
-          )}
-          {step >= 2 && selectedTime && (
-            <div className="flex items-center justify-between bg-[var(--color-amber-light)] rounded-[10px] px-3 py-2">
-              <span className="text-[13px] font-bold text-[var(--color-amber-dark)]">Est. Total</span>
-              <span className="text-[15px] font-bold text-[var(--color-amber-dark)]">₹{Math.round(total * 1.05).toLocaleString()}</span>
-            </div>
+            <>
+              <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
+                <span className="text-[13px] text-[var(--color-gray)]">Rate</span>
+                <span className="text-[13px] font-semibold text-[var(--color-dark)]">₹{Math.round(profile.hourlyRatePaisa / 100).toLocaleString()}/hr</span>
+              </div>
+              <div className="flex items-center justify-between bg-[var(--color-amber-light)] rounded-[10px] px-3 py-2">
+                <span className="text-[13px] font-bold text-[var(--color-amber-dark)]">Est. Total</span>
+                <span className="text-[15px] font-bold text-[var(--color-amber-dark)]">₹{Math.round(total * 1.05).toLocaleString()}</span>
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Step list */}
       <div className="bg-white rounded-[16px] border border-[var(--color-border)] p-4">
         {steps.map((label, i) => {
           const s = i + 1
@@ -371,32 +380,93 @@ function CompanionSidebar({
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function BookingFlow() {
   const { companionId } = useParams<{ companionId: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const companion = MOCK_COMPANIONS.find(c => c.id === companionId)
 
-  const preselectedService = useMemo(() => {
-    const param = searchParams.get('service')
-    return companion?.services.find(s => s.type === param) ?? null
-  }, [])
+  const [profile, setProfile] = useState<ApiProfile | null>(null)
+  const [services, setServices] = useState<ApiService[]>([])
+  const [availability, setAvailability] = useState<ApiAvailability[]>([])
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
 
-  const [step, setStep] = useState(() => preselectedService ? 2 : 1)
-  const [selectedService, setSelectedService] = useState<Service | null>(preselectedService)
+  useEffect(() => {
+    if (!companionId) return
+    Promise.all([
+      api.get<ApiProfile>(`/companions/${companionId}`),
+      api.get<ApiService[]>(`/companions/${companionId}/services`),
+      api.get<ApiAvailability[]>(`/companions/${companionId}/availability`),
+    ])
+      .then(([p, s, a]) => {
+        setProfile(p.data)
+        setServices(s.data)
+        setAvailability(a.data)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProfile(false))
+  }, [companionId])
+
+  const serviceParam = searchParams.get('service')
+  const preselectedService = useMemo(
+    () => services.find(s => s.serviceType === serviceParam) ?? null,
+    [services, serviceParam],
+  )
+
+  const [step, setStep] = useState(() => serviceParam ? 2 : 1)
+  const [selectedService, setSelectedService] = useState<string | null>(serviceParam)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [dateAvailable, setDateAvailable] = useState(true)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [duration, setDuration] = useState(2)
   const [location, setLocation] = useState('')
   const [locationCoords, setLocationCoords] = useState<LngLat | null>(null)
-const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00 AM', to: '12:00 PM', note: '', tip: 0, tipCustom: '' })
+  const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00 AM', to: '12:00 PM', note: '', tip: 0, tipCustom: '' })
 
-  const timeSlots = useMemo(() => generateSlots(MOCK_SCHEDULE.from, MOCK_SCHEDULE.to), [])
+  // Set service from preselected when services load
+  useEffect(() => {
+    if (preselectedService && !selectedService) {
+      setSelectedService(preselectedService.serviceType)
+      setStep(2)
+    }
+  }, [preselectedService, selectedService])
 
-  if (!companion) {
+  // Available days set (JS day numbers)
+  const availableDays = useMemo(() => {
+    return new Set(availability.map(a => dbDayToJsDay(a.dayOfWeek)))
+  }, [availability])
+
+  // Time slots for the selected date
+  const timeSlots = useMemo(() => {
+    if (!selectedDate || !dateAvailable) return []
+    const jsDay = selectedDate.getDay()
+    const slot = availability.find(a => dbDayToJsDay(a.dayOfWeek) === jsDay)
+    if (!slot) return []
+    const from = timeToHour(slot.fromTime)
+    const to = timeToHour(slot.toTime)
+    return Array.from({ length: to - from }, (_, i) => hourToSlot(from + i))
+  }, [selectedDate, dateAvailable, availability])
+
+  // Map centre from profile
+  const mapCentre = useMemo(
+    () => parseEwktCentre(profile?.serviceAreaCentre ?? null) ?? { lng: 77.209, lat: 28.6139 },
+    [profile],
+  )
+
+  if (loadingProfile) {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg)] animate-pulse flex flex-col">
+        <div className="bg-white border-b border-[var(--color-border)] h-[56px]" />
+        <div className="flex-1 max-w-[1060px] mx-auto px-4 py-8 w-full">
+          <div className="h-[400px] rounded-[16px] bg-white border border-[var(--color-border)]" />
+        </div>
+      </div>
+    )
+  }
+
+  if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <p className="text-[14px] text-[var(--color-gray)]">Companion not found</p>
@@ -405,8 +475,9 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
     )
   }
 
-  const hourlyRate = companion.priceFrom
+  const hourlyRate = Math.round(profile.hourlyRatePaisa / 100)
   const total = hourlyRate * duration
+  const initials = profile.displayName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
   function handleDateSelect(date: Date, available: boolean) {
     setSelectedDate(date)
@@ -425,10 +496,39 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
     return true
   }
 
-  function next() {
-    if (step < TOTAL_STEPS) setStep(s => s + 1)
-    else navigate('/app/bookings')
+  async function handleNext() {
+    if (step < TOTAL_STEPS) { setStep(s => s + 1); return }
+
+    // Step 4: submit booking
+    if (!selectedDate || !selectedService) return
+    setSubmitting(true)
+    try {
+      const startHour = dateAvailable ? parseSlot(selectedTime!) : parseSlot(customRequest.from)
+      const bookedStart = new Date(selectedDate)
+      bookedStart.setHours(startHour, 0, 0, 0)
+
+      const durationMins = dateAvailable
+        ? duration * 60
+        : (parseSlot(customRequest.to) - parseSlot(customRequest.from)) * 60
+
+      await api.post('/bookings', {
+        companionId: profile.id,
+        serviceType: selectedService,
+        bookedStart: bookedStart.toISOString(),
+        bookedDurationMinutes: durationMins,
+        meetingSpot: locationCoords ? [locationCoords.lng, locationCoords.lat] : [mapCentre.lng, mapCentre.lat],
+        meetingSpotText: location,
+        isCustomRequest: !dateAvailable,
+        customNote: !dateAvailable ? customRequest.note : undefined,
+      })
+      navigate('/app/bookings', { replace: true })
+    } catch {
+      // TODO: show error toast
+    } finally {
+      setSubmitting(false)
+    }
   }
+
   function back() {
     if (step > 1) setStep(s => s - 1)
     else navigate(-1)
@@ -442,21 +542,17 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
   return (
     <div className="min-h-screen bg-[var(--color-bg)] flex flex-col">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="bg-white border-b border-[var(--color-border)] sticky top-0 z-10">
         <div className="max-w-[1060px] mx-auto px-4 md:px-8">
           <div className="flex items-center gap-3 h-[56px]">
-            <button
-              onClick={back}
-              className="w-8 h-8 rounded-[8px] hover:bg-[var(--color-gray-light)] flex items-center justify-center transition-colors flex-shrink-0"
-            >
+            <button onClick={back} className="w-8 h-8 rounded-[8px] hover:bg-[var(--color-gray-light)] flex items-center justify-center transition-colors flex-shrink-0">
               <IconArrowLeft size={18} stroke={1.5} className="text-[var(--color-dark)]" />
             </button>
             <div className="flex-1">
               <p className="text-[15px] font-semibold text-[var(--color-dark)] leading-none">{stepTitles[step - 1]}</p>
               <p className="text-[11px] text-[var(--color-gray)] mt-0.5">Step {step} of {TOTAL_STEPS}</p>
             </div>
-            {/* Progress dots */}
             <div className="hidden md:flex items-center gap-1.5">
               {[1,2,3,4].map(s => (
                 <div key={s} className={`h-1.5 rounded-full transition-all ${
@@ -466,26 +562,21 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
                 }`} />
               ))}
             </div>
-            <Avatar src={companion.avatarUrl ?? undefined} initials={companion.initials} size="sm" />
+            <Avatar src={profile.profilePhotoUrl} initials={initials} size="sm" />
           </div>
-          {/* Mobile progress bar */}
           <div className="md:hidden h-1 bg-[var(--color-border)] rounded-full mb-1 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${(step / TOTAL_STEPS) * 100}%`, background: 'var(--gradient-gold)' }}
-            />
+            <div className="h-full rounded-full transition-all duration-300" style={{ width: `${(step / TOTAL_STEPS) * 100}%`, background: 'var(--gradient-gold)' }} />
           </div>
         </div>
       </div>
 
-      {/* ── Body ── */}
+      {/* Body */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1060px] mx-auto px-4 md:px-8 py-5 md:py-8 md:grid md:grid-cols-[280px,1fr] lg:grid-cols-[300px,1fr] md:gap-8 md:items-start">
 
-          {/* Desktop sidebar */}
           <div className="hidden md:block">
             <CompanionSidebar
-              companion={companion}
+              profile={profile}
               step={step}
               selectedService={selectedService}
               selectedDate={selectedDate}
@@ -496,67 +587,72 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
             />
           </div>
 
-          {/* Step content */}
           <div className="flex flex-col gap-4">
 
-            {/* ── Step 1: Service ── */}
+            {/* Step 1: Service */}
             {step === 1 && (
               <div>
                 <div className="mb-5">
                   <h2 className="text-[18px] font-bold text-[var(--color-dark)]">Choose an experience</h2>
                   <p className="text-[13px] text-[var(--color-gray)] mt-1">
-                    All services with {companion.name} are billed at{' '}
+                    All services with {profile.displayName} are billed at{' '}
                     <span className="font-semibold text-[var(--color-amber)]">₹{hourlyRate.toLocaleString()}/hr</span>
                   </p>
                 </div>
-                <div className="flex flex-col gap-3">
-                  {companion.services.map(service => (
-                    <button
-                      key={service.type}
-                      onClick={() => setSelectedService(service)}
-                      className={`flex items-center justify-between rounded-[14px] border-2 p-4 transition-all text-left ${
-                        selectedService?.type === service.type
-                          ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)] shadow-[0_2px_12px_rgba(232,160,0,0.15)]'
-                          : 'border-[var(--color-border)] bg-white hover:border-[var(--color-amber)]/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-[10px] flex items-center justify-center flex-shrink-0 ${
-                          selectedService?.type === service.type ? 'bg-[var(--color-amber)]/20' : 'bg-[var(--color-gray-light)]'
+                {services.length === 0 ? (
+                  <p className="text-[13px] text-[var(--color-gray)]">No services listed yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {services.map(svc => (
+                      <button
+                        key={svc.id}
+                        onClick={() => setSelectedService(svc.serviceType)}
+                        className={`flex items-center justify-between rounded-[14px] border-2 p-4 transition-all text-left ${
+                          selectedService === svc.serviceType
+                            ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)] shadow-[0_2px_12px_rgba(232,160,0,0.15)]'
+                            : 'border-[var(--color-border)] bg-white hover:border-[var(--color-amber)]/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-[10px] flex items-center justify-center flex-shrink-0 ${
+                            selectedService === svc.serviceType ? 'bg-[var(--color-amber)]/20' : 'bg-[var(--color-gray-light)]'
+                          }`}>
+                            <IconUsers size={18} stroke={1.5} className={selectedService === svc.serviceType ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-gray)]'} />
+                          </div>
+                          <div>
+                            <p className={`text-[14px] font-semibold ${selectedService === svc.serviceType ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-dark)]'}`}>
+                              {SERVICE_LABELS[svc.serviceType] ?? svc.serviceType}
+                            </p>
+                            <p className="text-[11px] text-[var(--color-gray)] mt-0.5">₹{hourlyRate.toLocaleString()} / hour</p>
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
+                          selectedService === svc.serviceType ? 'bg-[var(--color-amber)] border-[var(--color-amber)]' : 'border-[var(--color-border)]'
                         }`}>
-                          <IconUsers size={18} stroke={1.5} className={selectedService?.type === service.type ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-gray)]'} />
+                          {selectedService === svc.serviceType && <IconCheck size={11} stroke={2.5} color="white" />}
                         </div>
-                        <div>
-                          <p className={`text-[14px] font-semibold ${selectedService?.type === service.type ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-dark)]'}`}>
-                            {service.label}
-                          </p>
-                          <p className="text-[11px] text-[var(--color-gray)] mt-0.5">₹{hourlyRate.toLocaleString()} / hour</p>
-                        </div>
-                      </div>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
-                        selectedService?.type === service.type
-                          ? 'bg-[var(--color-amber)] border-[var(--color-amber)]'
-                          : 'border-[var(--color-border)]'
-                      }`}>
-                        {selectedService?.type === service.type && <IconCheck size={11} stroke={2.5} color="white" />}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ── Step 2: Date & Time ── */}
+            {/* Step 2: Date & Time */}
             {step === 2 && (
               <div className="flex flex-col gap-4">
                 <div className="mb-1">
                   <h2 className="text-[18px] font-bold text-[var(--color-dark)]">When would you like to meet?</h2>
-                  <p className="text-[13px] text-[var(--color-gray)] mt-1">
-                    Available {[...MOCK_SCHEDULE.days].join(', ')} · {MOCK_SCHEDULE.from}–{MOCK_SCHEDULE.to}
-                  </p>
+                  {availability.length > 0 ? (
+                    <p className="text-[13px] text-[var(--color-gray)] mt-1">
+                      Available {availability.map(a => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][a.dayOfWeek]).join(', ')}
+                    </p>
+                  ) : (
+                    <p className="text-[13px] text-[var(--color-gray)] mt-1">Send a custom request for any date</p>
+                  )}
                 </div>
 
-                <MiniCalendar selected={selectedDate} onChange={handleDateSelect} schedule={MOCK_SCHEDULE} />
+                <MiniCalendar selected={selectedDate} onChange={handleDateSelect} availableDays={availableDays} />
 
                 {selectedDate && !dateAvailable && (
                   <CustomBookingPanel value={customRequest} onChange={setCustomRequest} />
@@ -570,25 +666,26 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
                           <IconClock size={15} stroke={1.5} className="text-[var(--color-amber)]" />
                           <p className="text-[14px] font-bold text-[var(--color-dark)]">Available slots</p>
                         </div>
-                        <span className="text-[11px] text-[var(--color-gray)] bg-[var(--color-gray-light)] px-2 py-0.5 rounded-full">
-                          {MOCK_SCHEDULE.from} – {MOCK_SCHEDULE.to}
-                        </span>
                       </div>
-                      <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
-                        {timeSlots.map(slot => (
-                          <button
-                            key={slot}
-                            onClick={() => setSelectedTime(slot)}
-                            className={`py-2.5 rounded-[10px] text-[12px] font-semibold transition-all ${
-                              selectedTime === slot
-                                ? 'bg-[var(--color-amber)] text-white shadow-[0_2px_8px_rgba(232,160,0,0.35)]'
-                                : 'bg-[var(--color-gray-light)] text-[var(--color-dark)] hover:bg-[var(--color-amber-light)] hover:text-[var(--color-amber-dark)]'
-                            }`}
-                          >
-                            {slot}
-                          </button>
-                        ))}
-                      </div>
+                      {timeSlots.length === 0 ? (
+                        <p className="text-[13px] text-[var(--color-gray)]">No slots configured for this day.</p>
+                      ) : (
+                        <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
+                          {timeSlots.map(slot => (
+                            <button
+                              key={slot}
+                              onClick={() => setSelectedTime(slot)}
+                              className={`py-2.5 rounded-[10px] text-[12px] font-semibold transition-all ${
+                                selectedTime === slot
+                                  ? 'bg-[var(--color-amber)] text-white shadow-[0_2px_8px_rgba(232,160,0,0.35)]'
+                                  : 'bg-[var(--color-gray-light)] text-[var(--color-dark)] hover:bg-[var(--color-amber-light)] hover:text-[var(--color-amber-dark)]'
+                              }`}
+                            >
+                              {slot}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-white rounded-[16px] border border-[var(--color-border)] p-5">
@@ -626,20 +723,20 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
               </div>
             )}
 
-            {/* ── Step 3: Meeting Spot ── */}
+            {/* Step 3: Meeting Spot */}
             {step === 3 && (
               <div className="flex flex-col gap-5">
                 <div>
                   <h2 className="text-[18px] font-bold text-[var(--color-dark)]">Where should you meet?</h2>
                   <p className="text-[13px] text-[var(--color-gray)] mt-1">
-                    Tap the map to pin a spot within {companion.name}'s area. Shared after confirmation.
+                    Tap the map to pin a spot. Shared with {profile.displayName} after confirmation.
                   </p>
                 </div>
 
                 <LocationPickerMap
-                  centerLng={72.829}
-                  centerLat={19.057}
-                  radiusKm={3}
+                  centerLng={mapCentre.lng}
+                  centerLat={mapCentre.lat}
+                  radiusKm={profile.serviceAreaRadiusKm}
                   selected={locationCoords}
                   onSelect={(label, coords) => { setLocationCoords(coords); setLocation(label) }}
                 />
@@ -659,18 +756,17 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
                     </button>
                   )}
                 </div>
-
               </div>
             )}
 
-            {/* ── Step 4: Summary + Pay ── */}
+            {/* Step 4: Summary + Pay */}
             {step === 4 && (
               <div className="flex flex-col gap-4">
                 {!dateAvailable && (
                   <div className="flex items-center gap-2 bg-[var(--color-amber-light)] rounded-[12px] px-4 py-3">
                     <IconMessageCircle size={14} stroke={1.5} className="text-[var(--color-amber)] flex-none" />
                     <p className="text-[12px] text-[var(--color-amber-dark)] font-medium">
-                      Custom request — {companion.name} will confirm within 24 hours.
+                      Custom request — {profile.displayName} will confirm within 24 hours.
                     </p>
                   </div>
                 )}
@@ -678,15 +774,15 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
                 <div className="bg-white rounded-[16px] border border-[var(--color-border)] p-5">
                   <p className="text-[14px] font-bold text-[var(--color-dark)] mb-4">Booking Summary</p>
                   <div className="flex items-center gap-3 mb-4 pb-4 border-b border-[var(--color-border)]">
-                    <Avatar src={companion.avatarUrl ?? undefined} initials={companion.initials} size="lg" />
+                    <Avatar src={profile.profilePhotoUrl} initials={initials} size="lg" />
                     <div>
-                      <p className="text-[15px] font-bold text-[var(--color-dark)]">{companion.name}</p>
-                      <p className="text-[12px] text-[var(--color-gray)]">{companion.neighbourhood}, {companion.city}</p>
+                      <p className="text-[15px] font-bold text-[var(--color-dark)]">{profile.displayName}</p>
+                      <p className="text-[12px] text-[var(--color-gray)]">Delhi NCR</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {[
-                      { icon: <IconCheck size={13} stroke={1.5} />,    label: 'Service', value: selectedService?.label },
+                      { icon: <IconCheck size={13} stroke={1.5} />,    label: 'Service', value: selectedService ? (SERVICE_LABELS[selectedService] ?? selectedService) : '—' },
                       { icon: <IconCalendar size={13} stroke={1.5} />, label: 'Date',    value: selectedDate?.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) },
                       { icon: <IconClock size={13} stroke={1.5} />,    label: 'Time',    value: summaryTime },
                       { icon: <IconMapPin size={13} stroke={1.5} />,   label: 'Meet at', value: location || '—' },
@@ -747,8 +843,8 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
                   <IconShieldCheck size={14} stroke={1.5} className="text-[var(--color-success)] flex-none mt-0.5" />
                   <p className="text-[11px] text-[var(--color-gray)] leading-relaxed">
                     {dateAvailable
-                      ? `Payment is held securely. You'll only be charged after ${companion.name} accepts.`
-                      : `Only the tip (₹${customRequest.tip.toLocaleString()}) is charged now. Session payment is settled after ${companion.name} confirms.`}
+                      ? `Payment is held securely. You'll only be charged after ${profile.displayName} accepts.`
+                      : `Only the tip (₹${customRequest.tip.toLocaleString()}) is charged now. Session payment is settled after ${profile.displayName} confirms.`}
                   </p>
                 </div>
               </div>
@@ -758,7 +854,7 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
         </div>
       </div>
 
-      {/* ── Bottom CTA ── */}
+      {/* Bottom CTA */}
       <div className="bg-white border-t border-[var(--color-border)]">
         <div className="max-w-[1060px] mx-auto px-4 md:px-8 py-4 md:pl-[calc(300px+64px)]">
           {step === 4 && (
@@ -767,14 +863,14 @@ const [customRequest, setCustomRequest] = useState<CustomRequest>({ from: '10:00
             </p>
           )}
           <button
-            onClick={next}
-            disabled={!canProceed()}
+            onClick={handleNext}
+            disabled={!canProceed() || submitting}
             className="w-full py-3.5 bg-[var(--color-amber)] rounded-[14px] text-white text-[15px] font-bold disabled:opacity-40 transition-all hover:opacity-90 active:scale-[0.99] flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(232,160,0,0.35)]"
           >
             {step === TOTAL_STEPS ? (
               <>
                 <IconCheck size={17} stroke={2.5} />
-                {dateAvailable
+                {submitting ? 'Confirming…' : dateAvailable
                   ? `Confirm Booking · ₹${Math.round(total * 1.05).toLocaleString()}`
                   : `Send Custom Request · ₹${customRequest.tip.toLocaleString()} tip`}
               </>
