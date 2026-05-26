@@ -129,7 +129,7 @@ export default function Landing() {
             </div>
             <h1 className="text-[36px] md:text-[52px] font-semibold text-[var(--color-dark)] leading-[1.15] mb-5">
               Find Meaningful<br />Company For Every{' '}
-              <span className="text-gradient-gold">Experience</span>
+              <span className="text-gradient-primary">Experience</span>
             </h1>
             <p className="text-[14px] md:text-[15px] text-[var(--color-gray)] leading-[1.65] max-w-[400px] mb-8">
               From coffee dates and rooftop dinners to concerts, travel, and city adventures — discover verified companions who match your vibe.
@@ -222,7 +222,7 @@ export default function Landing() {
           <div className="flex items-end justify-between mb-8">
             <h2 className="text-[28px] md:text-[32px] font-semibold text-[var(--color-dark)]">
               Whatever The Occasion,<br />
-              <span className="text-gradient-gold">Never Go Alone</span>
+              <span className="text-gradient-primary">Never Go Alone</span>
             </h2>
             <button onClick={() => navigate('/app')} className="text-[12px] text-[var(--color-amber)] font-medium hidden md:flex items-center gap-1 hover:underline">
               View all <IconArrowRight size={13} stroke={1.5} />
@@ -258,7 +258,7 @@ export default function Landing() {
         <div className="relative z-10 max-w-[1280px] mx-auto px-6 md:px-12 lg:px-20">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-amber)] mb-2">Featured companions</div>
           <div className="flex items-end justify-between mb-6">
-            <h2 className="text-[28px] font-semibold text-[var(--color-dark)]">Meet <span className="text-gradient-gold">Featured</span> Companions</h2>
+            <h2 className="text-[28px] font-semibold text-[var(--color-dark)]">Meet <span className="text-gradient-primary">Featured</span> Companions</h2>
             <button onClick={() => navigate('/app')} className="text-[12px] text-[var(--color-amber)] font-medium hidden md:flex items-center gap-1 hover:underline">
               View all <IconArrowRight size={13} stroke={1.5} />
             </button>
@@ -286,7 +286,7 @@ export default function Landing() {
 
         <div className="relative z-10">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-amber)] mb-2">How Meytle Works</div>
-          <h2 className="text-[28px] font-semibold mb-12"><span className="text-gradient-gold">Simple, Secure, Seamless</span></h2>
+          <h2 className="text-[28px] font-semibold mb-12"><span className="text-gradient-primary">Simple, Secure, Seamless</span></h2>
           <div className="grid md:grid-cols-3 gap-6 md:gap-0 relative">
             <div className="hidden md:block absolute top-10 left-[22%] right-[22%] border-t border-dashed border-[var(--color-border)]" />
             {HOW_STEPS.map(({ n, icon, title, body }) => (
@@ -335,7 +335,7 @@ export default function Landing() {
         <div className="relative z-10">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-amber)] mb-2">Real people</div>
           <h2 className="text-[28px] font-semibold text-[var(--color-dark)] mb-10">
-            Real People. Real Experiences.<br /><span className="text-gradient-gold">Real Connections.</span>
+            Real People. Real Experiences.<br /><span className="text-gradient-primary">Real Connections.</span>
           </h2>
           <div className="grid md:grid-cols-3 gap-5">
             {TESTIMONIALS.map(({ quote, name, loc, exp }) => (
@@ -389,7 +389,7 @@ export default function Landing() {
             <IconHeart size={24} stroke={1.5} color="white" />
           </div>
           <h2 className="text-[28px] md:text-[32px] font-semibold text-[var(--color-dark)] mb-3">
-            Life Is Better <span className="text-gradient-gold">Shared</span>
+            Life Is Better <span className="text-gradient-primary">Shared</span>
           </h2>
           <p className="text-[14px] text-[var(--color-gray)] mb-8 leading-relaxed">
             Join a modern community built around experiences,<br className="hidden md:block" /> connection, and meaningful companionship.

@@ -289,7 +289,7 @@ export default function BookingDetailPage() {
 
         {/* Review CTA for completed */}
         {isCompleted && (
-          <button className="w-full h-12 rounded-[12px] bg-[var(--color-amber)] text-white text-[14px] font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-[0_2px_12px_rgba(232,160,0,0.4)]">
+          <button className="w-full h-12 rounded-[12px] bg-[var(--color-amber)] text-white text-[14px] font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-[0_2px_12px_rgba(0,212,170,0.4)]">
             <IconStar size={16} stroke={1.5} />
             Leave a Review
           </button>

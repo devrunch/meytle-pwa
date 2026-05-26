@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconEdit, IconStar, IconCalendarEvent, IconHeart, IconShield,
   IconBell, IconCreditCard, IconHelp, IconLogout, IconChevronRight,
-  IconUsers, IconMapPin, IconCamera,
+  IconUsers, IconMapPin, IconCamera, IconLayoutDashboard,
 } from '@tabler/icons-react'
 import { useAuthStore } from '../../store/auth'
+import { useCompanionStore } from '../../store/companion'
 import { api } from '../../lib/api'
 
 interface SettingRow {
@@ -52,6 +53,7 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const user = useAuthStore(s => s.user)
   const logout = useAuthStore(s => s.logout)
+  const companionProfileId = useCompanionStore(s => s.profileId)
   const [bookingCount, setBookingCount] = useState<number | null>(null)
   const [completedCount, setCompletedCount] = useState<number>(0)
 
@@ -140,22 +142,40 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Become a Companion CTA */}
-            <button
-              onClick={() => navigate('/app/companion/onboarding')}
-              className="w-full bg-[var(--color-amber-light)] border border-[var(--color-amber)] rounded-[14px] p-4 flex items-center justify-between hover:bg-[#fdedb0] transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[10px] bg-[var(--color-amber)] flex items-center justify-center flex-shrink-0">
-                  <IconUsers size={20} stroke={1.5} color="white" />
+            {/* Companion CTA — role-aware */}
+            {companionProfileId !== null ? (
+              <button
+                onClick={() => navigate('/app/companion/dashboard')}
+                className="w-full bg-[var(--color-amber-light)] border border-[var(--color-amber)] rounded-[14px] p-4 flex items-center justify-between hover:opacity-90 transition-opacity"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-[10px] bg-[var(--color-amber)] flex items-center justify-center flex-shrink-0">
+                    <IconLayoutDashboard size={20} stroke={1.5} color="white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[13px] font-semibold text-[var(--color-amber-dark)]">Companion Dashboard</p>
+                    <p className="text-[11px] text-[var(--color-amber)]">Manage your bookings</p>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <p className="text-[13px] font-semibold text-[var(--color-amber-dark)]">Become a Companion</p>
-                  <p className="text-[11px] text-[var(--color-amber)]">Earn on your schedule</p>
+                <IconChevronRight size={16} stroke={1.5} className="text-[var(--color-amber)]" />
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/app/companion/onboarding')}
+                className="w-full bg-[var(--color-amber-light)] border border-[var(--color-amber)] rounded-[14px] p-4 flex items-center justify-between hover:opacity-90 transition-opacity"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-[10px] bg-[var(--color-amber)] flex items-center justify-center flex-shrink-0">
+                    <IconUsers size={20} stroke={1.5} color="white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[13px] font-semibold text-[var(--color-amber-dark)]">Become a Companion</p>
+                    <p className="text-[11px] text-[var(--color-amber)]">Earn on your schedule</p>
+                  </div>
                 </div>
-              </div>
-              <IconChevronRight size={16} stroke={1.5} className="text-[var(--color-amber)]" />
-            </button>
+                <IconChevronRight size={16} stroke={1.5} className="text-[var(--color-amber)]" />
+              </button>
+            )}
 
             {/* Verification card */}
             <div className="bg-white rounded-[16px] border border-[var(--color-border)] p-4">

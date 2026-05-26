@@ -196,7 +196,7 @@ function SwipeCard({
         </div>
 
         <div className="h-[88px] relative" style={{ background: 'linear-gradient(135deg, #FFF3CC 0%, #FFE066 100%)' }}>
-          <div className="absolute -bottom-8 left-4 w-[64px] h-[64px] rounded-full bg-white shadow-[0_4px_16px_rgba(232,160,0,0.25)] border-4 border-white flex items-center justify-center">
+          <div className="absolute -bottom-8 left-4 w-[64px] h-[64px] rounded-full bg-white shadow-[0_4px_16px_rgba(0,212,170,0.25)] border-4 border-white flex items-center justify-center">
             <span className="text-[20px] font-black text-[var(--color-amber-dark)]">{request.userInitials}</span>
           </div>
         </div>
@@ -244,7 +244,7 @@ function SwipeCard({
             </button>
             <button
               onClick={triggerAccept}
-              className="flex-1 h-13 rounded-[14px] bg-[var(--color-amber)] text-white text-[14px] font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(232,160,0,0.4)]"
+              className="flex-1 h-13 rounded-[14px] bg-[var(--color-amber)] text-white text-[14px] font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(0,212,170,0.4)]"
               style={{ height: 52 }}
             >
               <IconCheck size={18} stroke={2.5} /> Accept
@@ -336,7 +336,7 @@ function RequestCard({
             </button>
             <button
               onClick={onAccept}
-              className="flex-1 h-9 rounded-[10px] bg-[var(--color-amber)] text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity shadow-[0_2px_8px_rgba(232,160,0,0.35)]"
+              className="flex-1 h-9 rounded-[10px] bg-[var(--color-amber)] text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity shadow-[0_2px_8px_rgba(0,212,170,0.35)]"
             >
               <IconCheck size={13} stroke={2.5} /> Accept
             </button>

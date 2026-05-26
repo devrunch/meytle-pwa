@@ -12,7 +12,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'btn-gradient-gold border-transparent active:scale-[0.98] shadow-[0_2px_12px_rgba(232,160,0,0.45)]',
+    'btn-gradient-primary border-transparent active:scale-[0.98] shadow-[0_2px_12px_rgba(0,212,170,0.40)]',
   ghost:
     'bg-transparent text-[var(--color-gray)] border-[0.5px] border-[#CCCCCC] hover:bg-[var(--color-bg)]',
   outline:

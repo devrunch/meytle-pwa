@@ -423,7 +423,7 @@ export default function CompanionProfile() {
                 <div className="px-6 py-5">
                   <button
                     onClick={bookNow}
-                    className="btn-gradient-gold w-full h-12 rounded-[12px] text-white text-[14px] font-semibold shadow-[0_2px_12px_rgba(232,160,0,0.45)] hover:opacity-90 transition-opacity mb-3"
+                    className="btn-gradient-primary w-full h-12 rounded-[12px] text-white text-[14px] font-semibold shadow-[0_2px_12px_rgba(0,212,170,0.45)] hover:opacity-90 transition-opacity mb-3"
                   >
                     Book Now
                   </button>
@@ -467,7 +467,7 @@ export default function CompanionProfile() {
           </div>
           <button
             onClick={bookNow}
-            className="btn-gradient-gold flex-1 h-11 rounded-[12px] text-white text-[14px] font-semibold"
+            className="btn-gradient-primary flex-1 h-11 rounded-[12px] text-white text-[14px] font-semibold"
           >
             Book Now
           </button>

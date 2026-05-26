@@ -155,7 +155,7 @@ function MiniCalendar({
 
             let cellClass = 'relative h-10 w-full rounded-[8px] text-[13px] font-medium transition-all flex items-center justify-center '
             if (isSelected) {
-              cellClass += 'bg-[var(--color-amber)] text-white font-bold shadow-[0_2px_8px_rgba(232,160,0,0.4)]'
+              cellClass += 'bg-[var(--color-amber)] text-white font-bold shadow-[0_2px_8px_rgba(0,212,170,0.4)]'
             } else if (isPast) {
               cellClass += 'text-[var(--color-border)] cursor-not-allowed'
             } else if (available) {
@@ -609,7 +609,7 @@ export default function BookingFlow() {
                         onClick={() => setSelectedService(svc.serviceType)}
                         className={`flex items-center justify-between rounded-[14px] border-2 p-4 transition-all text-left ${
                           selectedService === svc.serviceType
-                            ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)] shadow-[0_2px_12px_rgba(232,160,0,0.15)]'
+                            ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)] shadow-[0_2px_12px_rgba(0,212,170,0.15)]'
                             : 'border-[var(--color-border)] bg-white hover:border-[var(--color-amber)]/50'
                         }`}
                       >
@@ -677,7 +677,7 @@ export default function BookingFlow() {
                               onClick={() => setSelectedTime(slot)}
                               className={`py-2.5 rounded-[10px] text-[12px] font-semibold transition-all ${
                                 selectedTime === slot
-                                  ? 'bg-[var(--color-amber)] text-white shadow-[0_2px_8px_rgba(232,160,0,0.35)]'
+                                  ? 'bg-[var(--color-amber)] text-white shadow-[0_2px_8px_rgba(0,212,170,0.35)]'
                                   : 'bg-[var(--color-gray-light)] text-[var(--color-dark)] hover:bg-[var(--color-amber-light)] hover:text-[var(--color-amber-dark)]'
                               }`}
                             >
@@ -697,7 +697,7 @@ export default function BookingFlow() {
                             onClick={() => setDuration(hrs)}
                             className={`py-3 rounded-[10px] text-[13px] font-semibold transition-all flex flex-col items-center gap-0.5 ${
                               duration === hrs
-                                ? 'bg-[var(--color-amber)] text-white shadow-[0_2px_8px_rgba(232,160,0,0.35)]'
+                                ? 'bg-[var(--color-amber)] text-white shadow-[0_2px_8px_rgba(0,212,170,0.35)]'
                                 : 'bg-[var(--color-gray-light)] text-[var(--color-dark)] hover:bg-[var(--color-amber-light)]'
                             }`}
                           >
@@ -865,7 +865,7 @@ export default function BookingFlow() {
           <button
             onClick={handleNext}
             disabled={!canProceed() || submitting}
-            className="w-full py-3.5 bg-[var(--color-amber)] rounded-[14px] text-white text-[15px] font-bold disabled:opacity-40 transition-all hover:opacity-90 active:scale-[0.99] flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(232,160,0,0.35)]"
+            className="w-full py-3.5 bg-[var(--color-amber)] rounded-[14px] text-white text-[15px] font-bold disabled:opacity-40 transition-all hover:opacity-90 active:scale-[0.99] flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(0,212,170,0.35)]"
           >
             {step === TOTAL_STEPS ? (
               <>

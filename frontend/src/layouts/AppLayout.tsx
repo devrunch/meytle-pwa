@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import {
   IconHome, IconMap, IconMessageCircle, IconCalendar, IconUser,
@@ -7,6 +7,7 @@ import {
 } from '@tabler/icons-react'
 import { BottomNav } from '../components/ui'
 import { useAuthStore } from '../store/auth'
+import { useCompanionStore } from '../store/companion'
 import type { NavTab } from '../types'
 
 const TAB_ROUTES: Record<NavTab, string> = {
@@ -31,6 +32,10 @@ export default function AppLayout() {
   const user = useAuthStore(s => s.user)
   const logout = useAuthStore(s => s.logout)
   const initials = user?.fullName?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) ?? '?'
+  const fetchCompanion = useCompanionStore(s => s.fetch)
+  const companionProfileId = useCompanionStore(s => s.profileId)
+
+  useEffect(() => { fetchCompanion() }, [fetchCompanion])
 
   function handleLogout() {
     logout()
@@ -121,8 +126,9 @@ export default function AppLayout() {
 
                     {[
                       { icon: <IconUser size={14} stroke={1.5} />, label: 'My Profile', onClick: () => { navigate('/app/profile'); setProfileOpen(false) } },
-                      { icon: <IconLayoutDashboard size={14} stroke={1.5} />, label: 'Companion Dashboard', onClick: () => { navigate('/app/companion/dashboard'); setProfileOpen(false) } },
-                      { icon: <IconUsers size={14} stroke={1.5} />, label: 'Become a Companion', onClick: () => { navigate('/app/companion/onboarding'); setProfileOpen(false) } },
+                      companionProfileId !== null
+                        ? { icon: <IconLayoutDashboard size={14} stroke={1.5} />, label: 'Companion Dashboard', onClick: () => { navigate('/app/companion/dashboard'); setProfileOpen(false) } }
+                        : { icon: <IconUsers size={14} stroke={1.5} />, label: 'Become a Companion', onClick: () => { navigate('/app/companion/onboarding'); setProfileOpen(false) } },
                       { icon: <IconSettings size={14} stroke={1.5} />, label: 'Settings', onClick: () => { navigate('/app/profile'); setProfileOpen(false) } },
                     ].map(item => (
                       <button

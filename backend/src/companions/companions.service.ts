@@ -31,12 +31,17 @@ export class CompanionsService {
 
     const [lng, lat] = dto.serviceAreaCentre;
 
+    const dobSource = dto.dateOfBirth
+      ? dto.dateOfBirth
+      : await this.users.findOne({ where: { id: userId }, select: ['dateOfBirth'] })
+          .then(u => u?.dateOfBirth?.toISOString().split('T')[0] ?? null);
+
     const profile = await this.dataSource.transaction(async (em) => {
       const p = em.create(CompanionProfile, {
         userId,
         displayName: dto.displayName,
         bio: dto.bio,
-        dateOfBirth: new Date(dto.dateOfBirth),
+        dateOfBirth: dobSource ? new Date(dobSource) : undefined,
         profilePhotoUrl: dto.profilePhotoUrl,
         hourlyRatePaisa: dto.hourlyRatePaisa,
         serviceAreaCentre: `SRID=4326;POINT(${lng} ${lat})`,

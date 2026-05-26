@@ -111,7 +111,7 @@ export default function HomePage() {
             <div>
               <p className="text-[13px] text-[var(--color-gray)]">{GREETING}, {firstName} — here's what's near you</p>
               <h1 className="text-[22px] font-bold mt-0.5">
-                Find a companion in <span className="text-gradient-gold">Delhi NCR</span>
+                Find a companion in <span className="text-gradient-primary">Delhi NCR</span>
               </h1>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">

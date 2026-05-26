@@ -22,8 +22,9 @@ export class CreateCompanionProfileDto {
   @MaxLength(300)
   bio?: string;
 
+  @IsOptional()
   @IsDateString()
-  dateOfBirth: string;
+  dateOfBirth?: string;
 
   @IsUrl()
   profilePhotoUrl: string;

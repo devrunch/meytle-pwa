@@ -7,19 +7,19 @@
 
 @layer base {
   :root {
-    --color-amber:        #C9920A;
-    --color-amber-light:  #FEF3D0;
-    --color-amber-dark:   #7A5200;
+    --color-amber:        #00D4AA;
+    --color-amber-light:  #E6FAF6;
+    --color-amber-dark:   #007A60;
 
-    --gradient-gold:      linear-gradient(135deg, #F5C518 0%, #E8A000 40%, #C47808 100%);
-    --gradient-gold-h:    linear-gradient(90deg,  #F5C518 0%, #E09000 55%, #C47808 100%);
-    --gradient-gold-text: linear-gradient(135deg, #F0B429 0%, #D4920A 55%, #B8760A 100%);
+    --gradient-gold:      linear-gradient(135deg, #00D4AA 0%, #00C2D8 50%, #4F8CFF 100%);
+    --gradient-gold-h:    linear-gradient(90deg,  #00D4AA 0%, #4F8CFF 100%);
+    --gradient-gold-text: linear-gradient(135deg, #00D4AA 0%, #4F8CFF 100%);
 
-    --color-dark:         #1A1A1A;
-    --color-gray:         #666666;
-    --color-gray-light:   #F5F2EC;
-    --color-border:       #E8E4DC;
-    --color-bg:           #FAF9F7;
+    --color-dark:         #0F172A;
+    --color-gray:         #64748B;
+    --color-gray-light:   #F1F5F9;
+    --color-border:       #E8F1F0;
+    --color-bg:           #F7FBFA;
     --color-white:        #FFFFFF;
 
     --color-success:      #0F6E56;
@@ -63,33 +63,33 @@
     outline-offset: 2px;
   }
 
-  /* Gold gradient text utility */
-  .text-gradient-gold {
+  /* Primary gradient text utility */
+  .text-gradient-primary {
     background: var(--gradient-gold-text);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  /* Gold gradient button utility */
-  .btn-gradient-gold {
+  /* Primary gradient button utility */
+  .btn-gradient-primary {
     background: var(--gradient-gold);
     color: white;
     border: none;
     position: relative;
     overflow: hidden;
   }
-  .btn-gradient-gold::after {
+  .btn-gradient-primary::after {
     content: '';
     position: absolute;
     inset: 0;
     background: rgba(255,255,255,0);
     transition: background 0.15s;
   }
-  .btn-gradient-gold:hover::after {
+  .btn-gradient-primary:hover::after {
     background: rgba(255,255,255,0.08);
   }
-  .btn-gradient-gold:active::after {
+  .btn-gradient-primary:active::after {
     background: rgba(0,0,0,0.08);
   }
 
@@ -102,11 +102,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #F5C518, #C47808);
+    background: linear-gradient(180deg, #00D4AA, #00A082);
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #F0B429, #B8700A);
+    background: linear-gradient(180deg, #00C29A, #008F72);
   }
   ::-webkit-scrollbar-corner {
     background: transparent;
@@ -114,7 +114,7 @@
   /* Firefox */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #C9920A transparent;
+    scrollbar-color: #00D4AA transparent;
   }
 
   /* ── Marquee animation ────────────────────────────────────────── */

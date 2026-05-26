@@ -316,7 +316,7 @@ export default function BookingDetail() {
             <button
               onClick={accept}
               disabled={acting}
-              className="flex-1 py-4 rounded-[16px] bg-[var(--color-amber)] text-white text-[15px] font-bold hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 shadow-[0_6px_20px_rgba(232,160,0,0.45)] disabled:opacity-50"
+              className="flex-1 py-4 rounded-[16px] bg-[var(--color-amber)] text-white text-[15px] font-bold hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 shadow-[0_6px_20px_rgba(0,212,170,0.45)] disabled:opacity-50"
             >
               <IconCheck size={18} stroke={2.5} /> Accept Booking
             </button>

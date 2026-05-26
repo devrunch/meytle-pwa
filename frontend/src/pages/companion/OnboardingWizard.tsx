@@ -197,20 +197,16 @@ function StepRate({ rate, onChange }: { rate: number; onChange: (r: number) => v
 // ── Step 3: Interests / About You ─────────────────────────────────────────────
 function StepInterests({
   displayName,
-  dateOfBirth,
   selected,
   tags,
   onDisplayName,
-  onDateOfBirth,
   onSelected,
   onTags,
 }: {
   displayName: string
-  dateOfBirth: string
   selected: string[]
   tags: string[]
   onDisplayName: (v: string) => void
-  onDateOfBirth: (v: string) => void
   onSelected: (s: string[]) => void
   onTags: (t: string[]) => void
 }) {
@@ -232,35 +228,20 @@ function StepInterests({
         Tell clients who you are. Pick your interests and personality traits too.
       </p>
 
-      {/* Display name + DOB */}
-      <div className="grid sm:grid-cols-2 gap-4 mb-7">
-        <div>
-          <label className="block text-[12px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-1.5">
-            Display name <span className="text-[var(--color-error)]">*</span>
-          </label>
-          <input
-            type="text"
-            value={displayName}
-            onChange={e => onDisplayName(e.target.value)}
-            placeholder="e.g. Aanya K."
-            maxLength={40}
-            className="w-full h-11 px-3 rounded-[10px] border border-[var(--color-border)] text-[13px] text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-amber)] transition-colors"
-          />
-          <p className="text-[11px] text-[var(--color-gray)] mt-1">Shown on your public profile</p>
-        </div>
-        <div>
-          <label className="block text-[12px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-1.5">
-            Date of birth <span className="text-[var(--color-error)]">*</span>
-          </label>
-          <input
-            type="date"
-            value={dateOfBirth}
-            onChange={e => onDateOfBirth(e.target.value)}
-            max={new Date(Date.now() - 18 * 365.25 * 24 * 3600 * 1000).toISOString().slice(0, 10)}
-            className="w-full h-11 px-3 rounded-[10px] border border-[var(--color-border)] text-[13px] text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-amber)] transition-colors"
-          />
-          <p className="text-[11px] text-[var(--color-gray)] mt-1">Must be 18+. Not shown publicly.</p>
-        </div>
+      {/* Display name */}
+      <div className="mb-7 max-w-[320px]">
+        <label className="block text-[12px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-1.5">
+          Display name <span className="text-[var(--color-error)]">*</span>
+        </label>
+        <input
+          type="text"
+          value={displayName}
+          onChange={e => onDisplayName(e.target.value)}
+          placeholder="e.g. Aanya K."
+          maxLength={40}
+          className="w-full h-11 px-3 rounded-[10px] border border-[var(--color-border)] text-[13px] text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-amber)] transition-colors"
+        />
+        <p className="text-[11px] text-[var(--color-gray)] mt-1">Shown on your public profile</p>
       </div>
 
       {/* Interest groups */}
@@ -540,7 +521,6 @@ export default function OnboardingWizard() {
   const [services, setServices]           = useState<ExperienceType[]>([])
   const [rate, setRate]                   = useState(1000)
   const [displayName, setDisplayName]     = useState('')
-  const [dateOfBirth, setDateOfBirth]     = useState('')
   const [interests, setInterests]         = useState<string[]>([])
   const [personalityTags, setPersonality] = useState<string[]>([])
   const [schedule, setSchedule]           = useState<ScheduleValue>(createEmptySchedule())
@@ -569,7 +549,7 @@ export default function OnboardingWizard() {
 
   function canProceed() {
     if (step === 1) return services.length > 0
-    if (step === 3) return displayName.trim().length > 0 && dateOfBirth.length > 0
+    if (step === 3) return displayName.trim().length > 0
     if (step === 5) return photos.length >= 3 && !photoUploading
     return true
   }
@@ -589,7 +569,6 @@ export default function OnboardingWizard() {
       await api.post('/companions/me', {
         displayName: displayName.trim(),
         bio: bio || undefined,
-        dateOfBirth,
         profilePhotoUrl: photos[0],
         hourlyRatePaisa: rate * 100,
         serviceAreaCentre: [77.209, 28.6139], // Delhi NCR default
@@ -705,11 +684,9 @@ export default function OnboardingWizard() {
               {step === 3 && (
                 <StepInterests
                   displayName={displayName}
-                  dateOfBirth={dateOfBirth}
                   selected={interests}
                   tags={personalityTags}
                   onDisplayName={setDisplayName}
-                  onDateOfBirth={setDateOfBirth}
                   onSelected={setInterests}
                   onTags={setPersonality}
                 />
@@ -742,8 +719,8 @@ export default function OnboardingWizard() {
                 {step === 1 && services.length === 0 && (
                   <p className="text-[12px] text-[var(--color-gray)]">Select at least one service</p>
                 )}
-                {step === 3 && (!displayName.trim() || !dateOfBirth) && (
-                  <p className="text-[12px] text-[var(--color-gray)]">Display name and date of birth are required</p>
+                {step === 3 && !displayName.trim() && (
+                  <p className="text-[12px] text-[var(--color-gray)]">Display name is required</p>
                 )}
                 {step === 5 && photoUploading && (
                   <p className="text-[12px] text-[var(--color-gray)]">Uploading…</p>

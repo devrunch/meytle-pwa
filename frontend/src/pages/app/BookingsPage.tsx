@@ -194,7 +194,7 @@ export default function BookingsPage() {
             <p className="text-[13px] text-[var(--color-gray)] mt-1">Find a companion and plan your next experience</p>
             <button
               onClick={() => navigate('/app')}
-              className="mt-5 px-6 py-2.5 btn-gradient-gold rounded-full text-[13px] font-medium text-white"
+              className="mt-5 px-6 py-2.5 btn-gradient-primary rounded-full text-[13px] font-medium text-white"
             >
               Explore companions
             </button>
