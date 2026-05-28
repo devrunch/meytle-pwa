@@ -27,6 +27,7 @@ export interface CompanionProfile {
   profileStatus: 'pending_verification' | 'active' | 'inactive' | 'rejected';
   serviceAreaRadiusKm: number;
   serviceAreaCentre?: string;
+  dateOfBirth?: string | null;
   stripeConnectedAccountId?: string | null;
   stripePayoutsEnabled?: boolean;
   identityVerifiedByStripe?: boolean;

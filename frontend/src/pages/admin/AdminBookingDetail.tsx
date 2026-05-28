@@ -192,7 +192,7 @@ export function AdminBookingDetail() {
             <ReadonlyField label="Service" value={<span className="capitalize">{booking.serviceType.replace(/_/g, ' ')}</span>} />
             <ReadonlyField label="Amount" value={rupees(booking.amountPaisa)} />
             <ReadonlyField label="Duration"
-              value={`${booking.durationHours}h`} />
+              value={`${booking.bookedDurationMinutes / 60}h`} />
             <ReadonlyField label="Start"
               value={new Date(booking.bookedStart).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} />
             <ReadonlyField label="End"

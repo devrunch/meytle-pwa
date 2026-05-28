@@ -10,7 +10,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { client } from '../../api/client';
 import { LocationPickerMap, type PickedLocation } from '../../components/ui/LocationPickerMap';
-import type { CompanionProfile, CompanionAvailability, ServiceType } from '../../types';
+import type { CompanionProfile, CompanionAvailability, CompanionService, ServiceType } from '../../types';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
 
@@ -448,7 +448,7 @@ export function BookingFlow() {
       client.get<CompanionAvailability[]>(`/companions/${id}/availability`).then((r) => r.data),
     ])
       .then(([prof, svcs, avail]) => {
-        setProfile({ ...prof, services: svcs });
+        setProfile({ ...prof, services: svcs as CompanionService[] });
         setAvailability(avail);
       })
       .catch(() => { toast.error('Companion not found'); navigate(-1); })

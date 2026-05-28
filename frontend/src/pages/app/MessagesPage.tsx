@@ -5,7 +5,14 @@ import toast from 'react-hot-toast';
 import { client } from '../../api/client';
 import type { Booking } from '../../types';
 
-const CHAT_STATUSES = ['confirmed', 'in_progress', 'completed'] as const;
+const CHAT_STATUSES = ['confirmed', 'in_progress'] as const;
+
+function isChatOpen(booking: Booking): boolean {
+  const now = Date.now();
+  const start = new Date(booking.bookedStart).getTime();
+  const end = new Date(booking.bookedEnd).getTime();
+  return now >= start - 3 * 60 * 60 * 1000 && now <= end;
+}
 
 const STATUS_CFG = {
   confirmed:   { label: 'Confirmed',   color: '#059669' },
@@ -25,7 +32,9 @@ export function MessagesPage() {
   const load = useCallback(async () => {
     try {
       const { data } = await client.get<Booking[]>('/bookings');
-      setBookings(data.filter((b) => (CHAT_STATUSES as readonly string[]).includes(b.status)));
+      setBookings(
+        data.filter((b) => (CHAT_STATUSES as readonly string[]).includes(b.status) && isChatOpen(b)),
+      );
     } catch {
       toast.error('Could not load messages');
     } finally {
@@ -55,7 +64,7 @@ export function MessagesPage() {
           <IconMessage2 size={48} className="text-border mb-4" stroke={1} />
           <p className="text-base font-semibold text-heading mb-1">No conversations yet</p>
           <p className="text-sm text-muted mb-6">
-            Chat becomes available once a booking is confirmed
+            Chat opens 3 hours before your booking starts
           </p>
           <button
             onClick={() => navigate('/browse')}

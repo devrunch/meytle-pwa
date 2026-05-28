@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { client } from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
 import { DatePicker } from '../../components/ui/DatePicker';
+import type { User } from '../../types';
 
 // ── Interest options ───────────────────────────────────────────────────────────
 
@@ -41,12 +42,11 @@ type Tab = 'info' | 'about' | 'photos';
 // ── Left identity column (shared across tabs) ─────────────────────────────────
 
 function IdentityCard({
-  fullName, avatarUrl, uploading, user, isCompanion, fileRef, onClickAvatar,
+  fullName, avatarUrl, uploading, user, isCompanion, onClickAvatar,
 }: {
   fullName: string; avatarUrl: string; uploading: boolean;
-  user: ReturnType<typeof useAuthStore>['user'];
+  user: User | null;
   isCompanion: boolean;
-  fileRef: React.RefObject<HTMLInputElement | null>;
   onClickAvatar: () => void;
 }) {
   const initial = fullName.trim()[0]?.toUpperCase() ?? '?';
@@ -313,7 +313,6 @@ export function ProfilePage() {
           <IdentityCard
             fullName={fullName} avatarUrl={avatarUrl} uploading={uploading}
             user={user} isCompanion={isCompanion}
-            fileRef={avatarRef}
             onClickAvatar={() => avatarRef.current?.click()}
           />
         </div>

@@ -2,7 +2,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   IconCompass, IconSearch, IconCalendarEvent, IconMessage2,
   IconUserStar, IconChevronDown, IconLogout,
-  IconSettings, IconLayoutDashboard, IconMenu2, IconX, IconUserCircle,
+  IconSettings, IconLayoutDashboard, IconMenu2, IconX, IconUserCircle, IconShieldHalf,
 } from '@tabler/icons-react';
 import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
@@ -15,7 +15,7 @@ const NAV_LINKS = [
 ];
 
 function UserDropdown({ onClose }: { onClose: () => void }) {
-  const { user, logout, isCompanion } = useAuthStore();
+  const { user, logout, isCompanion, isAdmin } = useAuthStore();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -57,6 +57,14 @@ function UserDropdown({ onClose }: { onClose: () => void }) {
             Companion Dashboard
           </Link>
         )}
+        {isAdmin() && (
+          <Link to="/admin" onClick={onClose}
+            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold hover:bg-surface-alt transition-colors"
+            style={{ color: '#A78BFA' }}>
+            <IconShieldHalf size={14} className="shrink-0" style={{ color: '#A78BFA' }} />
+            Admin Dashboard
+          </Link>
+        )}
         <Link to="/settings" onClick={onClose}
           className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-body hover:bg-surface-alt transition-colors">
           <IconSettings size={14} className="text-muted shrink-0" />
@@ -76,7 +84,7 @@ function UserDropdown({ onClose }: { onClose: () => void }) {
 }
 
 export function Navbar() {
-  const { user, isCompanion } = useAuthStore();
+  const { user, isCompanion, isAdmin } = useAuthStore();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -192,6 +200,14 @@ export function Navbar() {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-accent-green hover:bg-surface-alt transition-colors">
                 <IconLayoutDashboard size={16} stroke={1.8} />
                 Companion Dashboard
+              </Link>
+            )}
+            {isAdmin() && (
+              <Link to="/admin" onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold hover:bg-surface-alt transition-colors"
+                style={{ color: '#A78BFA' }}>
+                <IconShieldHalf size={16} stroke={1.8} style={{ color: '#A78BFA' }} />
+                Admin Dashboard
               </Link>
             )}
             <Link to="/settings" onClick={() => setMobileOpen(false)}

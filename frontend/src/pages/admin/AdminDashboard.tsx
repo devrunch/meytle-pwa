@@ -79,7 +79,7 @@ function RevenueChart({ data }: { data: DayRevenue[] }) {
 function StatCard({
   icon: Icon, label, value, sub, accent,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string; stroke?: number }>;
+  icon: React.ComponentType<{ size?: number; className?: string; stroke?: number; style?: React.CSSProperties }>;
   label: string;
   value: string | number;
   sub?: string;

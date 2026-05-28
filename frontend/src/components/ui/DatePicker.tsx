@@ -112,7 +112,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date', maxDa
                     {cursor.getFullYear()}
                   </button>
                 </div>
-                <button onClick={() => { const n = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1); if (n <= maxDate) setCursor(n); }}
+                <button onClick={() => { const n = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1); if (!maxDate || n <= maxDate) setCursor(n); }}
                   disabled={!canGoNext}
                   className={`w-6 h-6 flex items-center justify-center rounded-lg transition-colors ${canGoNext ? 'hover:bg-surface-alt text-muted hover:text-body' : 'text-border cursor-not-allowed'}`}>
                   <IconChevronRight size={13} />

@@ -10,6 +10,13 @@ import type { Booking } from '../../types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+function isChatOpen(booking: Booking): boolean {
+  const now = Date.now();
+  const start = new Date(booking.bookedStart).getTime();
+  const end = new Date(booking.bookedEnd).getTime();
+  return now >= start - 3 * 60 * 60 * 1000 && now <= end;
+}
+
 function rupees(paisa: number) {
   return `₹${(paisa / 100).toLocaleString('en-IN')}`;
 }
@@ -166,7 +173,7 @@ function BookingCard({ booking, onCancel, onShowOtp }: {
               <IconBolt size={13} /> Show OTP
             </button>
           )}
-          {(booking.status === 'confirmed' || booking.status === 'in_progress') && (
+          {(booking.status === 'confirmed' || booking.status === 'in_progress') && isChatOpen(booking) && (
             <button onClick={() => navigate(`/bookings/${booking.id}/chat`)}
               className="flex items-center gap-1.5 py-2 px-4 rounded-xl border border-teal-200 text-teal-600 text-xs font-semibold hover:bg-teal-50 transition">
               <IconMessage2 size={12} /> Chat

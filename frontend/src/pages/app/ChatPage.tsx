@@ -2,12 +2,19 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import {
-  IconArrowLeft, IconLoader2, IconSend, IconAlertCircle, IconWifi, IconWifiOff,
+  IconArrowLeft, IconLoader2, IconSend, IconAlertCircle, IconWifi, IconWifiOff, IconLock,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import { client } from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
 import type { Booking, Message } from '../../types';
+
+function isChatOpen(booking: Booking): boolean {
+  const now = Date.now();
+  const start = new Date(booking.bookedStart).getTime();
+  const end = new Date(booking.bookedEnd).getTime();
+  return now >= start - 3 * 60 * 60 * 1000 && now <= end;
+}
 
 function getToken(): string | null {
   try {
@@ -91,9 +98,10 @@ export function ChatPage() {
       });
   }, [id, navigate, scrollToBottom]);
 
-  // Socket.IO
+  // Socket.IO — only connect when within the chat window
   useEffect(() => {
     if (!id) return;
+    if (booking && !isChatOpen(booking)) return;
     const token = getToken();
     if (!token) return;
 
@@ -127,7 +135,7 @@ export function ChatPage() {
       socket.emit('leave', id);
       socket.disconnect();
     };
-  }, [id]);
+  }, [id, booking]);
 
   // Auto-resize textarea
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -161,6 +169,39 @@ export function ChatPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <IconLoader2 size={32} className="animate-spin text-teal-500" />
+      </div>
+    );
+  }
+
+  if (booking && !isChatOpen(booking)) {
+    const now = Date.now();
+    const start = new Date(booking.bookedStart).getTime();
+    const end = new Date(booking.bookedEnd).getTime();
+    const opensAt = start - 3 * 60 * 60 * 1000;
+    const isBefore = now < opensAt;
+    const hoursUntil = Math.ceil((opensAt - now) / (60 * 60 * 1000));
+    return (
+      <div className="flex flex-col h-screen bg-gray-50">
+        <header className="shrink-0 bg-white border-b px-4 h-14 flex items-center gap-3" style={{ borderColor: 'rgba(0,0,0,0.06)' }}>
+          <button onClick={() => navigate('/bookings')}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition shrink-0 text-gray-500">
+            <IconArrowLeft size={18} />
+          </button>
+          <p className="text-sm font-bold text-gray-900">{companion?.displayName ?? 'Chat'}</p>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-6 pb-12">
+          <div className="w-16 h-16 rounded-2xl bg-white border border-black/5 shadow-sm flex items-center justify-center mb-4">
+            <IconLock size={28} className="text-gray-300" />
+          </div>
+          <p className="text-base font-bold text-gray-800 mb-2">Chat not available</p>
+          <p className="text-sm text-gray-500 max-w-xs">
+            {isBefore
+              ? `Chat opens 3 hours before your booking starts${hoursUntil > 1 ? ` — in about ${hoursUntil} hours` : ' — very soon'}.`
+              : now > end
+              ? 'This booking has ended. Chat is no longer available.'
+              : 'Chat is not available for this booking.'}
+          </p>
+        </div>
       </div>
     );
   }

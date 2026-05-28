@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { IconArrowLeft, IconLoader2, IconDeviceFloppy, IconCheck, IconX } from '@tabler/icons-react';
+import { IconArrowLeft, IconLoader2, IconDeviceFloppy, IconCheck } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import { client } from '../../api/client';
 import type { CompanionProfile } from '../../types';

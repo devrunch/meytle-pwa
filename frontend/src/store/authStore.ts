@@ -11,6 +11,7 @@ interface AuthState {
   logout: () => void;
   isAuthenticated: () => boolean;
   isCompanion: () => boolean;
+  isAdmin: () => boolean;
   refreshUser: () => Promise<void>;
 }
 
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ token: null, user: null }),
       isAuthenticated: () => !!get().token,
       isCompanion: () => get().user?.roles.includes('companion' as any) ?? false,
+      isAdmin: () => get().user?.roles.includes('admin' as any) ?? false,
       refreshUser: async () => {
         if (!get().token) return;
         try {
