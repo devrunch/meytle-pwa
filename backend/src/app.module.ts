@@ -29,6 +29,7 @@ import { NotificationsModule } from './common/notifications.module'
 import { UploadsModule } from './uploads/uploads.module'
 import { ServiceArea } from './service-areas/service-area.entity'
 import { ServiceAreasModule } from './service-areas/service-areas.module'
+import { AdminModule } from './admin/admin.module'
 
 const entities = [
   User,
@@ -68,6 +69,7 @@ const entities = [
     NotificationsModule,
     UploadsModule,
     ServiceAreasModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

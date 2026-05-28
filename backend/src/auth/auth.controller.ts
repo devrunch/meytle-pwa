@@ -26,4 +26,11 @@ export class AuthController {
   me(@CurrentUser() user: User) {
     return user;
   }
+
+  @Post('promote-admin')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  promoteAdmin(@CurrentUser() user: User, @Body() body: { secret: string }) {
+    return this.authService.promoteToAdmin(user.id, body.secret);
+  }
 }

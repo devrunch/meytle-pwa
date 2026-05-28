@@ -40,8 +40,13 @@ export class CreateBookingDto {
   @IsOptional()
   customNote?: string;
 
-  // Stripe Payment Method ID — passed from frontend Stripe.js (optional until payment is wired)
+  // Stripe PaymentIntent ID — created via POST /bookings/prepare-payment, confirmed client-side
   @IsString()
+  paymentIntentId: string;
+
+  // Tip in paisa (custom requests only)
+  @IsInt()
+  @Min(0)
   @IsOptional()
-  paymentMethodId?: string;
+  tipPaisa?: number;
 }

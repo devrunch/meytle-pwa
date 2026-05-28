@@ -128,30 +128,26 @@ function OtpEntryModal({ booking, onClose, onStarted }: {
 
 // ── Booking row ───────────────────────────────────────────────────────────────
 
-function BookingRow({ booking, onAccept, onDecline, onEnterOtp }: {
+function BookingRow({ booking, onAccept, onDecline, onEnterOtp, onEndSession }: {
   booking: Booking;
   onAccept: (id: string) => void;
   onDecline: (id: string) => void;
   onEnterOtp: (b: Booking) => void;
+  onEndSession: (id: string) => void;
 }) {
   const cfg = STATUS_CFG[booking.status] ?? STATUS_CFG.pending;
   const [busy, setBusy] = useState(false);
 
-  async function handle(action: 'accept' | 'decline') {
+  async function handle(action: 'accept' | 'decline' | 'end') {
     setBusy(true);
     try {
       if (action === 'accept') await onAccept(booking.id);
-      else await onDecline(booking.id);
+      else if (action === 'decline') await onDecline(booking.id);
+      else await onEndSession(booking.id);
     } finally {
       setBusy(false);
     }
   }
-
-  // Show "Enter OTP" for confirmed bookings within the valid time window
-  const now        = Date.now();
-  const startMs    = new Date(booking.bookedStart).getTime();
-  const inWindow   = booking.status === 'confirmed' &&
-    now >= startMs - 15 * 60_000 && now <= startMs + 45 * 60_000;
 
   return (
     <div className="flex items-start gap-3 p-4 rounded-xl hover:bg-black/[0.02] transition-colors">
@@ -180,11 +176,19 @@ function BookingRow({ booking, onAccept, onDecline, onEnterOtp }: {
             <span className="truncate">{booking.meetingSpotText}</span>
           </div>
         )}
-        {inWindow && (
+        {booking.status === 'confirmed' && (
           <button onClick={() => onEnterOtp(booking)}
             className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-opacity hover:opacity-90"
             style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
             <IconCheck size={11} /> Enter OTP to Start
+          </button>
+        )}
+        {booking.status === 'in_progress' && (
+          <button onClick={() => handle('end')} disabled={busy}
+            className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg,#F59E0B,#EF4444)' }}>
+            {busy ? <IconLoader2 size={11} className="animate-spin" /> : <IconCheck size={11} />}
+            End Session
           </button>
         )}
       </div>
@@ -539,6 +543,7 @@ export function CompanionDashboard() {
   const [loading, setLoading] = useState(true);
   const [togglingAvail, setTogglingAvail] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'upcoming' | 'past'>('all');
+  const [otpBooking, setOtpBooking] = useState<Booking | null>(null);
 
   const syncStripeStatus = useCallback(async () => {
     const r = await client.get('/companions/me/stripe-status');
@@ -618,6 +623,16 @@ export function CompanionDashboard() {
       toast.success('Booking declined');
     } catch {
       toast.error('Failed to decline booking');
+    }
+  }
+
+  async function handleEndSession(id: string) {
+    try {
+      await client.patch(`/bookings/${id}/end-session`);
+      setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status: 'completed' } : b));
+      toast.success('Session ended — payment captured!');
+    } catch {
+      toast.error('Failed to end session');
     }
   }
 
@@ -796,7 +811,7 @@ export function CompanionDashboard() {
             ) : (
               <div className="divide-y divide-black/4">
                 {filteredBookings.map((b) => (
-                  <BookingRow key={b.id} booking={b} onAccept={handleAccept} onDecline={handleDecline} />
+                  <BookingRow key={b.id} booking={b} onAccept={handleAccept} onDecline={handleDecline} onEnterOtp={setOtpBooking} onEndSession={handleEndSession} />
                 ))}
               </div>
             )}
@@ -859,6 +874,17 @@ export function CompanionDashboard() {
           )}
         </div>
       </div>
+
+      {otpBooking && (
+        <OtpEntryModal
+          booking={otpBooking}
+          onClose={() => setOtpBooking(null)}
+          onStarted={() => {
+            setOtpBooking(null);
+            setBookings((prev) => prev.map((b) => b.id === otpBooking.id ? { ...b, status: 'in_progress' } : b));
+          }}
+        />
+      )}
 
       {/* ── Availability + Verification + Payout ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

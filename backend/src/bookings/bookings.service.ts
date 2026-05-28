@@ -3,13 +3,18 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, LessThan, IsNull } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
+import Stripe = require('stripe');
 import { Booking, BookingStatus, CancelledByParty } from './booking.entity';
 import { CompanionProfile } from '../companions/companion-profile.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { PreparePaymentDto } from './dto/prepare-payment.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { MailService } from '../mail/mail.service';
@@ -23,16 +28,91 @@ function fmtTime(d: Date) {
 
 @Injectable()
 export class BookingsService {
+  private readonly logger = new Logger(BookingsService.name);
+  private stripe: InstanceType<typeof Stripe> | null = null;
+
   constructor(
     @InjectRepository(Booking) private readonly bookings: Repository<Booking>,
     @InjectRepository(CompanionProfile) private readonly companions: Repository<CompanionProfile>,
     private readonly dataSource: DataSource,
     private readonly mail: MailService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    const key = this.config.get<string>('STRIPE_SECRET_KEY');
+    if (key?.startsWith('sk_')) {
+      this.stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' });
+      this.logger.log('Stripe initialised for payments');
+    } else {
+      this.logger.warn('Stripe NOT initialised — STRIPE_SECRET_KEY missing');
+    }
+  }
 
-  async create(userId: string, dto: CreateBookingDto): Promise<Booking> {
+  // ── Payment ──────────────────────────────────────────────────────────────────
+
+  /** Step 1 of booking: create a PaymentIntent with manual capture. */
+  async preparePayment(
+    userId: string,
+    dto: PreparePaymentDto,
+  ): Promise<{ clientSecret: string; paymentIntentId: string; totalPaisa: number }> {
+    if (!this.stripe) throw new InternalServerErrorException('Payment provider not configured');
+
     const companion = await this.companions.findOne({ where: { id: dto.companionId } });
     if (!companion) throw new NotFoundException('Companion not found');
+
+    const servicePaisa    = Math.round(companion.hourlyRatePaisa * (dto.bookedDurationMinutes / 60));
+    const platformFeePaisa = Math.round(servicePaisa * 0.05);
+    const tipPaisa         = dto.tipPaisa ?? 0;
+    const totalPaisa       = servicePaisa + platformFeePaisa + tipPaisa;
+
+    const hasConnect = !!(companion.stripeConnectedAccountId && companion.stripePayoutsEnabled);
+
+    const intent = await this.stripe.paymentIntents.create({
+      amount:               totalPaisa,
+      currency:             'inr',
+      capture_method:       'manual',
+      payment_method_types: ['card'],
+      metadata:             { companionId: dto.companionId, userId },
+      ...(hasConnect && {
+        transfer_data:          { destination: companion.stripeConnectedAccountId! },
+        application_fee_amount: platformFeePaisa,
+      }),
+    });
+
+    return {
+      clientSecret:   intent.client_secret!,
+      paymentIntentId: intent.id,
+      totalPaisa,
+    };
+  }
+
+  // ── Booking CRUD ─────────────────────────────────────────────────────────────
+
+  async create(userId: string, dto: CreateBookingDto): Promise<Booking> {
+    if (!this.stripe) throw new InternalServerErrorException('Payment provider not configured');
+
+    const companion = await this.companions.findOne({ where: { id: dto.companionId } });
+    if (!companion) throw new NotFoundException('Companion not found');
+
+    // Compute expected amounts before verifying the PaymentIntent
+    const servicePaisa     = Math.round(companion.hourlyRatePaisa * (dto.bookedDurationMinutes / 60));
+    const platformFeePaisa = Math.round(servicePaisa * 0.05);
+    const tipPaisa         = dto.tipPaisa ?? 0;
+    const expectedTotal    = servicePaisa + platformFeePaisa + tipPaisa;
+
+    // Verify the PaymentIntent: status, ownership, companion binding, and amount
+    const intent = await this.stripe.paymentIntents.retrieve(dto.paymentIntentId);
+    if (intent.status !== 'requires_capture') {
+      throw new BadRequestException('Payment not authorized — please complete the payment step');
+    }
+    if (intent.metadata?.userId !== userId) {
+      throw new ForbiddenException('PaymentIntent does not belong to this user');
+    }
+    if (intent.metadata?.companionId !== dto.companionId) {
+      throw new BadRequestException('PaymentIntent companion mismatch');
+    }
+    if (intent.amount !== expectedTotal) {
+      throw new BadRequestException('Payment amount does not match booking total');
+    }
 
     const bookedStart = new Date(dto.bookedStart);
     const bookedEnd   = new Date(bookedStart.getTime() + dto.bookedDurationMinutes * 60_000);
@@ -40,16 +120,19 @@ export class BookingsService {
 
     const booking = this.bookings.create({
       userId,
-      companionId:           dto.companionId,
-      serviceType:           dto.serviceType,
+      companionId:             dto.companionId,
+      serviceType:             dto.serviceType,
       bookedStart,
       bookedEnd,
-      bookedDurationMinutes: dto.bookedDurationMinutes,
-      meetingSpotText:       dto.meetingSpotText,
-      isCustomRequest:       dto.isCustomRequest ?? false,
-      customNote:            dto.customNote,
-      amountPaisa:           companion.hourlyRatePaisa * (dto.bookedDurationMinutes / 60),
-      status:                BookingStatus.PENDING,
+      bookedDurationMinutes:   dto.bookedDurationMinutes,
+      meetingSpotText:         dto.meetingSpotText,
+      isCustomRequest:         dto.isCustomRequest ?? false,
+      customNote:              dto.customNote,
+      amountPaisa:             servicePaisa + tipPaisa,
+      platformFeePaisa,
+      companionPayoutPaisa:    servicePaisa + tipPaisa,
+      status:                  BookingStatus.PENDING,
+      stripePaymentIntentId:   dto.paymentIntentId,
     });
 
     await this.bookings.save(booking);
@@ -126,7 +209,6 @@ export class BookingsService {
       otpCode: otp,
     });
 
-    // Notify the user
     const full = await this.bookings.findOne({
       where: { id: bookingId },
       relations: { user: true, companion: true },
@@ -153,6 +235,9 @@ export class BookingsService {
       throw new BadRequestException('Only pending bookings can be declined');
     }
 
+    // Release the payment hold
+    await this.cancelPaymentIntent(booking.stripePaymentIntentId, `Booking ${bookingId} declined by companion`);
+
     await this.bookings.update(bookingId, {
       status:             BookingStatus.CANCELLED,
       cancelledBy:        CancelledByParty.COMPANION,
@@ -160,7 +245,6 @@ export class BookingsService {
       cancellationReason: 'Declined by companion',
     });
 
-    // Notify the user
     const full = await this.bookings.findOne({
       where: { id: bookingId },
       relations: { user: true, companion: true },
@@ -188,6 +272,9 @@ export class BookingsService {
       throw new BadRequestException('Cannot cancel — contact support for confirmed bookings');
     }
 
+    // Release the payment hold
+    await this.cancelPaymentIntent(booking.stripePaymentIntentId, `Booking ${bookingId} cancelled by user`);
+
     await this.bookings.update(bookingId, {
       status:             BookingStatus.CANCELLED,
       cancelledBy:        CancelledByParty.USER,
@@ -213,8 +300,8 @@ export class BookingsService {
       throw new BadRequestException('Booking is not in confirmed state');
     }
 
-    const now      = new Date();
-    const diffMs   = now.getTime() - new Date(booking.bookedStart).getTime();
+    const now    = new Date();
+    const diffMs = now.getTime() - new Date(booking.bookedStart).getTime();
     if (diffMs < -15 * 60_000 || diffMs > 45 * 60_000) {
       throw new BadRequestException('OTP can only be verified within 15 min before to 45 min after the booking start time');
     }
@@ -225,9 +312,9 @@ export class BookingsService {
 
     const actualStart = new Date();
     await this.bookings.update(bookingId, {
-      status:         BookingStatus.IN_PROGRESS,
+      status:        BookingStatus.IN_PROGRESS,
       actualStart,
-      otpVerifiedAt:  actualStart,
+      otpVerifiedAt: actualStart,
     });
 
     return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
@@ -238,6 +325,9 @@ export class BookingsService {
     if (booking.status !== BookingStatus.IN_PROGRESS) {
       throw new BadRequestException('Session is not in progress');
     }
+
+    // Capture (charge) the held payment
+    await this.capturePaymentIntent(booking.stripePaymentIntentId, bookingId);
 
     await this.bookings.update(bookingId, {
       status:    BookingStatus.COMPLETED,
@@ -258,6 +348,7 @@ export class BookingsService {
     });
 
     for (const b of expired) {
+      await this.cancelPaymentIntent(b.stripePaymentIntentId, `Auto-expired booking ${b.id}`);
       await this.bookings.update(b.id, {
         status:             BookingStatus.CANCELLED,
         cancelledBy:        CancelledByParty.SYSTEM,
@@ -276,6 +367,7 @@ export class BookingsService {
     });
 
     for (const b of overdue) {
+      await this.capturePaymentIntent(b.stripePaymentIntentId, b.id);
       await this.bookings.update(b.id, {
         status:        BookingStatus.COMPLETED,
         actualEnd:     new Date(b.bookedEnd.getTime() + 2 * 60 * 60_000),
@@ -298,6 +390,7 @@ export class BookingsService {
     });
 
     for (const b of noShows) {
+      await this.cancelPaymentIntent(b.stripePaymentIntentId, `No-show booking ${b.id}`);
       await this.bookings.update(b.id, {
         status:             BookingStatus.CANCELLED,
         cancelledBy:        CancelledByParty.SYSTEM,
@@ -333,7 +426,29 @@ export class BookingsService {
     }
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
+  // ── Stripe helpers ──────────────────────────────────────────────────────────
+
+  private async cancelPaymentIntent(intentId: string | null | undefined, reason: string): Promise<void> {
+    if (!intentId || !this.stripe) return;
+    try {
+      await this.stripe.paymentIntents.cancel(intentId);
+      this.logger.log(`PI cancelled: ${intentId} (${reason})`);
+    } catch (err) {
+      this.logger.error(`Failed to cancel PI ${intentId}: ${err}`);
+    }
+  }
+
+  private async capturePaymentIntent(intentId: string | null | undefined, bookingId: string): Promise<void> {
+    if (!intentId || !this.stripe) return;
+    try {
+      await this.stripe.paymentIntents.capture(intentId);
+      this.logger.log(`PI captured: ${intentId} (booking ${bookingId})`);
+    } catch (err) {
+      this.logger.error(`Failed to capture PI ${intentId} for booking ${bookingId}: ${err}`);
+    }
+  }
+
+  // ── General helpers ─────────────────────────────────────────────────────────
 
   private generateOtp(): string {
     return String(Math.floor(100000 + Math.random() * 900000));

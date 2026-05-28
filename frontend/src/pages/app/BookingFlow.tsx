@@ -1,14 +1,18 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   IconArrowLeft, IconCheck, IconCalendar, IconClock, IconCreditCard,
   IconShieldCheck, IconChevronLeft, IconChevronRight, IconMessageCircle,
-  IconAlertCircle, IconMapPin, IconX, IconStar, IconUsers,
+  IconAlertCircle, IconMapPin, IconX, IconStar, IconUsers, IconLoader2,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { client } from '../../api/client';
 import { LocationPickerMap, type PickedLocation } from '../../components/ui/LocationPickerMap';
 import type { CompanionProfile, CompanionAvailability, ServiceType } from '../../types';
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -352,6 +356,76 @@ function CompanionSidebar({ profile, step, selectedService, selectedDate, select
   );
 }
 
+// ── CheckoutForm (must be rendered inside <Elements>) ─────────────────────────
+
+function CheckoutForm({
+  totalPaisa,
+  submitting,
+  onPay,
+}: {
+  totalPaisa: number;
+  submitting: boolean;
+  onPay: (paymentIntentId: string) => Promise<void>;
+}) {
+  const stripe   = useStripe();
+  const elements = useElements();
+  const [confirming, setConfirming] = useState(false);
+
+  async function handlePay() {
+    if (!stripe || !elements) return;
+    setConfirming(true);
+    try {
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: { return_url: window.location.href },
+        redirect: 'if_required',
+      });
+      if (error) {
+        toast.error(error.message ?? 'Payment failed');
+        return;
+      }
+      if (paymentIntent?.id) {
+        await onPay(paymentIntent.id);
+      }
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="bg-white rounded-2xl border border-border p-5">
+        <p className="text-[14px] font-bold text-heading mb-4 flex items-center gap-2">
+          <IconCreditCard size={16} stroke={1.5} className="text-muted" />
+          Payment details
+        </p>
+        <PaymentElement options={{ layout: 'tabs' }} />
+      </div>
+
+      <div className="flex items-start gap-2 bg-surface-alt rounded-xl px-3.5 py-3">
+        <IconShieldCheck size={14} stroke={1.5} className="text-emerald-600 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-muted leading-relaxed">
+          Card is authorized now but only charged after the companion accepts. Declined bookings are fully refunded.
+        </p>
+      </div>
+
+      <button
+        onClick={handlePay}
+        disabled={!stripe || confirming || submitting}
+        className="w-full py-3.5 rounded-2xl text-white text-[15px] font-bold disabled:opacity-40 transition-all hover:opacity-90 active:scale-[0.99] flex items-center justify-center gap-2 gradient-primary"
+      >
+        {confirming ? (
+          <><IconLoader2 size={17} className="animate-spin" /> Authorizing…</>
+        ) : submitting ? (
+          <><IconLoader2 size={17} className="animate-spin" /> Confirming…</>
+        ) : (
+          <><IconCheck size={17} stroke={2.5} /> Pay & Request · ₹{Math.round(totalPaisa / 100).toLocaleString('en-IN')}</>
+        )}
+      </button>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export function BookingFlow() {
@@ -363,6 +437,8 @@ export function BookingFlow() {
   const [availability, setAvailability] = useState<CompanionAvailability[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [submitting, setSubmitting]   = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [totalPaisa, setTotalPaisa]   = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -394,6 +470,28 @@ export function BookingFlow() {
     from: '10:00 AM', to: '12:00 PM', note: '', tip: 0, tipCustom: '',
   });
 
+  // Fetch PaymentIntent when user reaches step 4
+  useEffect(() => {
+    if (step !== 4 || !profile || clientSecret) return;
+    const durationMins = dateAvailable
+      ? duration * 60
+      : Math.max(60, (parseSlot(customRequest.to) - parseSlot(customRequest.from)) * 60);
+    const tipPaisa = !dateAvailable ? customRequest.tip * 100 : 0;
+
+    client.post<{ clientSecret: string; totalPaisa: number }>('/bookings/prepare-payment', {
+      companionId:           profile.id,
+      bookedDurationMinutes: durationMins,
+      isCustomRequest:       !dateAvailable,
+      tipPaisa,
+    })
+      .then((r) => {
+        setClientSecret(r.data.clientSecret);
+        setTotalPaisa(r.data.totalPaisa);
+      })
+      .catch(() => toast.error('Could not set up payment — please go back and try again'));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   // Pre-select service once profile loads
   useEffect(() => {
     if (serviceParam && services.length > 0 && !selectedService) {
@@ -421,6 +519,43 @@ export function BookingFlow() {
     () => parseEwktCentre(profile?.serviceAreaCentre ?? null) ?? { lng: 77.209, lat: 28.6139 },
     [profile],
   );
+
+  const submitBooking = useCallback(async (paymentIntentId: string) => {
+    if (!selectedDate || !selectedService || !profile) return;
+    setSubmitting(true);
+    try {
+      const startHour   = dateAvailable ? parseSlot(selectedTime!) : parseSlot(customRequest.from);
+      const bookedStart = new Date(selectedDate);
+      bookedStart.setHours(startHour, 0, 0, 0);
+
+      const durationMins = dateAvailable
+        ? duration * 60
+        : Math.max(60, (parseSlot(customRequest.to) - parseSlot(customRequest.from)) * 60);
+
+      await client.post('/bookings', {
+        companionId:           profile.id,
+        serviceType:           selectedService,
+        bookedStart:           bookedStart.toISOString(),
+        bookedDurationMinutes: durationMins,
+        meetingSpot:           locationPick
+          ? [locationPick.lng, locationPick.lat]
+          : [mapCentre.lng, mapCentre.lat],
+        meetingSpotText:    location,
+        isCustomRequest:    !dateAvailable,
+        customNote:         !dateAvailable ? customRequest.note : undefined,
+        paymentIntentId,
+        tipPaisa:           !dateAvailable ? customRequest.tip * 100 : 0,
+      });
+
+      toast.success('Request sent! Waiting for companion to accept.');
+      navigate('/bookings', { replace: true });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(typeof msg === 'string' ? msg : 'Booking failed — please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [selectedDate, selectedService, profile, dateAvailable, selectedTime, customRequest, duration, locationPick, location, mapCentre, navigate]);
 
   if (loadingProfile) {
     return (
@@ -466,41 +601,9 @@ export function BookingFlow() {
     return true;
   }
 
-  async function handleNext() {
-    if (step < TOTAL_STEPS) { setStep((s) => s + 1); return; }
-
-    if (!selectedDate || !selectedService || !profile) return;
-    setSubmitting(true);
-    try {
-      const startHour   = dateAvailable ? parseSlot(selectedTime!) : parseSlot(customRequest.from);
-      const bookedStart = new Date(selectedDate);
-      bookedStart.setHours(startHour, 0, 0, 0);
-
-      const durationMins = dateAvailable
-        ? duration * 60
-        : (parseSlot(customRequest.to) - parseSlot(customRequest.from)) * 60;
-
-      await client.post('/bookings', {
-        companionId:           profile.id,
-        serviceType:           selectedService,
-        bookedStart:           bookedStart.toISOString(),
-        bookedDurationMinutes: durationMins,
-        meetingSpot:           locationPick
-          ? [locationPick.lng, locationPick.lat]
-          : [mapCentre.lng, mapCentre.lat],
-        meetingSpotText:    location,
-        isCustomRequest:    !dateAvailable,
-        customNote:         !dateAvailable ? customRequest.note : undefined,
-      });
-
-      toast.success('Booking confirmed! Your request has been sent.');
-      navigate('/bookings', { replace: true });
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      toast.error(typeof msg === 'string' ? msg : 'Booking failed — please try again.');
-    } finally {
-      setSubmitting(false);
-    }
+  function handleNext() {
+    if (step < TOTAL_STEPS) { setStep((s) => s + 1); }
+    // Step 4 submit is handled by CheckoutForm directly
   }
 
   function back() {
@@ -823,23 +926,27 @@ export function BookingFlow() {
                   </div>
                 )}
 
-                <div className="bg-white rounded-2xl border border-border p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <IconCreditCard size={16} stroke={1.5} className="text-muted" />
-                      <p className="text-[13px] font-medium text-heading">Payment on confirmation</p>
-                    </div>
+                {/* Stripe payment */}
+                {clientSecret ? (
+                  <Elements
+                    stripe={stripePromise}
+                    options={{
+                      clientSecret,
+                      appearance: { theme: 'stripe', variables: { colorPrimary: '#00D4AA', borderRadius: '12px' } },
+                    }}
+                  >
+                    <CheckoutForm
+                      totalPaisa={totalPaisa}
+                      submitting={submitting}
+                      onPay={submitBooking}
+                    />
+                  </Elements>
+                ) : (
+                  <div className="flex items-center justify-center py-8 bg-white rounded-2xl border border-border">
+                    <IconLoader2 size={22} className="animate-spin text-teal-500" />
+                    <span className="ml-2 text-sm text-muted">Setting up payment…</span>
                   </div>
-                </div>
-
-                <div className="flex items-start gap-2 bg-surface-alt rounded-xl px-3.5 py-3">
-                  <IconShieldCheck size={14} stroke={1.5} className="text-emerald-600 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-muted leading-relaxed">
-                    {dateAvailable
-                      ? `Payment is held securely. You'll only be charged after ${profile.displayName} accepts.`
-                      : `Full amount (₹${customTotal.toLocaleString()}) is held securely and released after ${profile.displayName} confirms.`}
-                  </p>
-                </div>
+                )}
               </div>
             )}
 
@@ -847,27 +954,17 @@ export function BookingFlow() {
         </div>
       </div>
 
-      {/* Bottom CTA */}
-      <div className="bg-white border-t border-border">
-        <div className="max-w-265 mx-auto px-4 md:px-8 py-4 md:pl-91">
-          {step === 4 && (
-            <p className="text-center text-[11px] text-muted mb-2">
-              By confirming you agree to our booking terms and cancellation policy.
-            </p>
-          )}
-          <button onClick={handleNext} disabled={!canProceed() || submitting}
-            className="w-full py-3.5 rounded-2xl text-white text-[15px] font-bold disabled:opacity-40 transition-all hover:opacity-90 active:scale-[0.99] flex items-center justify-center gap-2 gradient-primary">
-            {step === TOTAL_STEPS ? (
-              <>
-                <IconCheck size={17} stroke={2.5} />
-                {submitting ? 'Confirming…' : dateAvailable
-                  ? `Confirm Booking · ₹${Math.round(total * 1.05).toLocaleString()}`
-                  : `Send Custom Request · ₹${customTotal.toLocaleString()}`}
-              </>
-            ) : 'Continue'}
-          </button>
+      {/* Bottom CTA — hidden on step 4 (CheckoutForm has its own button) */}
+      {step < TOTAL_STEPS && (
+        <div className="bg-white border-t border-border">
+          <div className="max-w-265 mx-auto px-4 md:px-8 py-4 md:pl-91">
+            <button onClick={handleNext} disabled={!canProceed()}
+              className="w-full py-3.5 rounded-2xl text-white text-[15px] font-bold disabled:opacity-40 transition-all hover:opacity-90 active:scale-[0.99] flex items-center justify-center gap-2 gradient-primary">
+              Continue
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );

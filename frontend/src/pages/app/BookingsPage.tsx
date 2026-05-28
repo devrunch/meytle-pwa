@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconCalendarEvent, IconClock, IconMapPin, IconLoader2, IconX,
-  IconBolt, IconCurrencyRupee, IconChevronRight,
+  IconBolt, IconCurrencyRupee, IconChevronRight, IconMessage2,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import { client } from '../../api/client';
@@ -157,13 +157,19 @@ function BookingCard({ booking, onCancel, onShowOtp }: {
       </div>
 
       {/* Actions */}
-      {(booking.status === 'pending' || booking.status === 'confirmed') && (
+      {(booking.status === 'pending' || booking.status === 'confirmed' || booking.status === 'in_progress') && (
         <div className="px-4 pb-4 flex gap-2">
           {booking.status === 'confirmed' && (
             <button onClick={() => onShowOtp(booking)}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-white text-xs font-semibold transition-opacity hover:opacity-90"
               style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
-              <IconBolt size={13} /> Verify OTP
+              <IconBolt size={13} /> Show OTP
+            </button>
+          )}
+          {(booking.status === 'confirmed' || booking.status === 'in_progress') && (
+            <button onClick={() => navigate(`/bookings/${booking.id}/chat`)}
+              className="flex items-center gap-1.5 py-2 px-4 rounded-xl border border-teal-200 text-teal-600 text-xs font-semibold hover:bg-teal-50 transition">
+              <IconMessage2 size={12} /> Chat
             </button>
           )}
           {booking.status === 'pending' && (

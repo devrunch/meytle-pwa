@@ -15,6 +15,13 @@ import { CompanionProfilePage } from './pages/companion/CompanionProfile';
 import { CompanionDetailPage } from './pages/app/CompanionDetailPage';
 import { BookingsPage } from './pages/app/BookingsPage';
 import { BookingFlow } from './pages/app/BookingFlow';
+import { MessagesPage } from './pages/app/MessagesPage';
+import { ChatPage } from './pages/app/ChatPage';
+import { AdminLayout } from './pages/admin/AdminLayout';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminCompanions } from './pages/admin/AdminCompanions';
+import { AdminBookings } from './pages/admin/AdminBookings';
 import { useAuthStore } from './store/authStore';
 
 function RootRedirect() {
@@ -52,6 +59,7 @@ export default function App() {
           {/* Full-page (no navbar) */}
           <Route path="/become-companion" element={<OnboardingWizard />} />
           <Route path="/companions/:id/book" element={<BookingFlow />} />
+          <Route path="/bookings/:id/chat" element={<ChatPage />} />
 
           <Route element={<AppLayout />}>
             <Route path="/home" element={<HomePage />} />
@@ -59,8 +67,19 @@ export default function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/companions/:id" element={<CompanionDetailPage />} />
             <Route path="/bookings" element={<BookingsPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
             <Route path="/companion/dashboard" element={<CompanionDashboard />} />
             <Route path="/companion/profile" element={<CompanionProfilePage />} />
+          </Route>
+        </Route>
+
+        {/* Admin panel — protected by admin role (enforced inside AdminLayout) */}
+        <Route element={<AuthGuard />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="companions" element={<AdminCompanions />} />
+            <Route path="bookings" element={<AdminBookings />} />
           </Route>
         </Route>
 

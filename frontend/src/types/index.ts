@@ -10,6 +10,8 @@ export interface User {
   interests?: string[] | null;
   photos?: string[] | null;
   roles: UserRole[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CompanionProfile {
@@ -82,6 +84,15 @@ export type BookingStatus =
   | 'in_progress'
   | 'completed'
   | 'cancelled';
+
+export interface Message {
+  id: string;
+  bookingId: string;
+  senderId: string;
+  content: string;
+  isBlocked: boolean;
+  sentAt: string;
+}
 
 export interface AuthTokens {
   accessToken: string;

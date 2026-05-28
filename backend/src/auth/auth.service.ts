@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,6 +13,7 @@ import { User, UserRole } from '../users/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './jwt.strategy';
+import { ConfigService } from '@nestjs/config';
 
 const MIN_AGE_YEARS = 18;
 
@@ -20,6 +22,7 @@ export class AuthService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly jwt: JwtService,
+    private readonly config: ConfigService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -69,6 +72,20 @@ export class AuthService {
   private sanitise(user: User) {
     const { passwordHash: _, ...safe } = user as User & { passwordHash: string };
     return safe;
+  }
+
+  async promoteToAdmin(userId: string, secret: string) {
+    const expected = this.config.get<string>('ADMIN_SECRET');
+    if (!expected || secret !== expected) throw new ForbiddenException('Invalid admin secret');
+
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+
+    if (!user.roles.includes(UserRole.ADMIN)) {
+      user.roles = [...user.roles, UserRole.ADMIN];
+      await this.users.save(user);
+    }
+    return this.issueToken(user);
   }
 
   private assertMinAge(dob: string) {

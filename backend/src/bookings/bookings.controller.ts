@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/user.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { PreparePaymentDto } from './dto/prepare-payment.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
 
@@ -19,6 +20,11 @@ import { CancelBookingDto } from './dto/cancel-booking.dto';
 @UseGuards(JwtAuthGuard)
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
+
+  @Post('prepare-payment')
+  preparePayment(@CurrentUser() user: User, @Body() dto: PreparePaymentDto) {
+    return this.bookingsService.preparePayment(user.id, dto);
+  }
 
   @Post()
   create(@CurrentUser() user: User, @Body() dto: CreateBookingDto) {
