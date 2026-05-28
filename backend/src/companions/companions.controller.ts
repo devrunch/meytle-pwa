@@ -75,6 +75,12 @@ export class CompanionsController {
     return this.companionsService.syncStripePayoutStatus(user.id);
   }
 
+  @Post('me/stripe-login-link')
+  @UseGuards(JwtAuthGuard)
+  stripeLoginLink(@CurrentUser() user: User) {
+    return this.companionsService.createStripeLoginLink(user.id);
+  }
+
   @Patch('me/profile')
   @UseGuards(JwtAuthGuard)
   updateProfile(@CurrentUser() user: User, @Body() dto: UpdateCompanionProfileDto) {

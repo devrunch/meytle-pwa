@@ -4,6 +4,7 @@ import { IconEye, IconEyeOff, IconLoader2 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import { authApi } from '../../api/auth';
 import { useAuthStore } from '../../store/authStore';
+import { DatePicker } from '../../components/ui/DatePicker';
 
 function passwordStrength(p: string): { score: number; label: string; color: string } {
   let score = 0;
@@ -138,7 +139,23 @@ export function RegisterPage() {
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             {field('fullName', 'Full name', { placeholder: 'Aditya Agarwal' })}
-            {field('dateOfBirth', 'Date of birth', { type: 'date', max: new Date(Date.now() - 18 * 365.25 * 86400000).toISOString().split('T')[0] })}
+
+            <div>
+              <label className="block text-sm font-medium text-body mb-1.5">Date of birth</label>
+              <DatePicker
+                value={form.dateOfBirth}
+                onChange={(v) => {
+                  setForm((f) => ({ ...f, dateOfBirth: v }));
+                  setTouched((t) => ({ ...t, dateOfBirth: true }));
+                  validateField('dateOfBirth', v);
+                }}
+                placeholder="Select your date of birth"
+              />
+              {errors.dateOfBirth && touched.dateOfBirth && (
+                <p className="text-red-500 text-xs mt-1">{errors.dateOfBirth}</p>
+              )}
+            </div>
+
             {field('email', 'Email', { type: 'email', placeholder: 'you@example.com' })}
 
             {/* Password with strength */}

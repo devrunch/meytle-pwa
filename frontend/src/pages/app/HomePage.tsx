@@ -46,7 +46,7 @@ function CompanionCard({ companion }: { companion: CompanionProfile }) {
   const services = companion.services?.map((s) => SERVICE_LABELS[s.serviceType]) ?? [];
 
   return (
-    <Link to={`/book/${companion.id}`}
+    <Link to={`/companions/${companion.id}`}
       className="group block bg-surface rounded-2xl border border-border overflow-hidden hover:border-accent-green/50 hover:shadow-xl transition-all duration-300">
       <div className="relative aspect-[3/4] overflow-hidden bg-surface-alt">
         {companion.profilePhotoUrl ? (

@@ -10,6 +10,7 @@ import { NoShowDispute } from './no-show-dispute.entity';
 import { CompanionProfile } from '../companions/companion-profile.entity';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { BookingsService } from './bookings.service';
       CompanionProfile,
     ]),
     ScheduleModule.forRoot(),
+    MailModule,
   ],
   controllers: [BookingsController],
   providers: [BookingsService],

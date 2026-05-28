@@ -9,16 +9,23 @@ interface Props {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /** Defaults to 18 years ago (DOB picker). Pass undefined to remove upper bound. */
+  maxDate?: Date | null;
+  /** When set, dates before this are disabled. */
+  minDate?: Date;
 }
 
-export function DatePicker({ value, onChange, placeholder = 'Select date' }: Props) {
-  const maxDate = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d; })();
+export function DatePicker({ value, onChange, placeholder = 'Select date', maxDate: maxDateProp, minDate }: Props) {
+  const maxDate: Date | null = maxDateProp !== undefined
+    ? maxDateProp
+    : (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d; })();
   const selected = value ? new Date(value + 'T00:00:00') : null;
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'day' | 'month' | 'year'>('day');
   const [cursor, setCursor] = useState(() => {
-    const d = selected ? new Date(selected) : new Date(maxDate);
+    const base = selected ?? (minDate && minDate > new Date() ? minDate : (maxDate ?? new Date()));
+    const d = new Date(base);
     d.setDate(1);
     return d;
   });
@@ -36,7 +43,12 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Pro
   const cells      = Array.from({ length: totalCells }, (_, i) => { const d = i - firstDOW + 1; return d >= 1 && d <= daysInMon ? d : null; });
 
   const isSelected = (d: number) => selected && selected.getFullYear() === cursor.getFullYear() && selected.getMonth() === cursor.getMonth() && selected.getDate() === d;
-  const isDisabled = (d: number) => new Date(cursor.getFullYear(), cursor.getMonth(), d) > maxDate;
+  const isDisabled = (d: number) => {
+    const dt = new Date(cursor.getFullYear(), cursor.getMonth(), d);
+    if (maxDate && dt > maxDate) return true;
+    if (minDate) { const m = new Date(minDate); m.setHours(0,0,0,0); if (dt < m) return true; }
+    return false;
+  };
   const isToday    = (d: number) => { const t = new Date(); return t.getFullYear() === cursor.getFullYear() && t.getMonth() === cursor.getMonth() && t.getDate() === d; };
 
   const select = (d: number) => {
@@ -47,8 +59,11 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Pro
     setView('day');
   };
 
-  const canGoNext = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1) <= maxDate;
-  const yearRange = Array.from({ length: 83 }, (_, i) => new Date().getFullYear() - 18 - i);
+  const canGoPrev = !minDate || new Date(cursor.getFullYear(), cursor.getMonth() - 1 + 1, 0) >= minDate;
+  const canGoNext = !maxDate || new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1) <= maxDate;
+  const maxYear = maxDate ? maxDate.getFullYear() : new Date().getFullYear() + 2;
+  const minYear = minDate ? minDate.getFullYear() : maxYear - 82;
+  const yearRange = Array.from({ length: maxYear - minYear + 1 }, (_, i) => maxYear - i);
 
   const formatted = selected
     ? selected.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -82,8 +97,9 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Pro
             <>
               {/* Header */}
               <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
-                <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-                  className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-alt text-muted hover:text-body transition-colors">
+                <button onClick={() => { if (canGoPrev) setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1)); }}
+                  disabled={!canGoPrev}
+                  className={`w-6 h-6 flex items-center justify-center rounded-lg transition-colors ${canGoPrev ? 'hover:bg-surface-alt text-muted hover:text-body' : 'text-border cursor-not-allowed'}`}>
                   <IconChevronLeft size={13} />
                 </button>
                 <div className="flex items-center gap-1 text-xs font-bold text-heading">
@@ -147,7 +163,8 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Pro
               <div className="grid grid-cols-3 gap-1.5">
                 {MONTHS.map((m, i) => {
                   const active   = cursor.getMonth() === i;
-                  const disabled = new Date(cursor.getFullYear(), i, 1) > maxDate;
+                  const disabled = (!!maxDate && new Date(cursor.getFullYear(), i, 1) > maxDate) ||
+                                   (!!minDate && new Date(cursor.getFullYear(), i + 1, 0) < minDate);
                   return (
                     <button key={m} disabled={disabled}
                       onClick={() => { setCursor(new Date(cursor.getFullYear(), i, 1)); setView('day'); }}

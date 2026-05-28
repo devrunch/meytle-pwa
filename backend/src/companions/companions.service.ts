@@ -337,12 +337,21 @@ export class CompanionsService {
     try {
       const account = await this.stripe.accounts.retrieve(profile.stripeConnectedAccountId);
       const payoutsEnabled = account.payouts_enabled ?? false;
-      const identityVerified = account.individual?.verification?.status === 'verified';
+      // Stripe won't enable payouts without identity verification, so treat payouts_enabled
+      // as the authoritative signal — individual.verification.status lags or stays 'pending'
+      // for Express accounts even after full onboarding completes.
+      const identityVerified =
+        account.individual?.verification?.status === 'verified' ||
+        (payoutsEnabled && (account.charges_enabled ?? false));
       const reqs = account.requirements;
 
       const updates: Partial<CompanionProfile> = {};
       if (payoutsEnabled !== profile.stripePayoutsEnabled) updates.stripePayoutsEnabled = payoutsEnabled;
       if (identityVerified !== profile.identityVerifiedByStripe) updates.identityVerifiedByStripe = identityVerified;
+      // Auto-activate profile once Stripe confirms identity + payouts
+      if (payoutsEnabled && identityVerified && profile.profileStatus === CompanionStatus.PENDING_VERIFICATION) {
+        updates.profileStatus = CompanionStatus.ACTIVE;
+      }
       if (Object.keys(updates).length) await this.profiles.update(profile.id, updates);
 
       return {
@@ -356,6 +365,21 @@ export class CompanionsService {
       };
     } catch {
       return { payoutsEnabled: false, identityVerified: false, requirements: { currentlyDue: [], pastDue: [], eventuallyDue: [] } };
+    }
+  }
+
+  async createStripeLoginLink(userId: string): Promise<{ url: string }> {
+    if (!this.stripe) throw new InternalServerErrorException('Stripe is not configured');
+
+    const profile = await this.profiles.findOne({ where: { userId } });
+    if (!profile?.stripeConnectedAccountId) throw new NotFoundException('No Stripe account found');
+
+    try {
+      const link = await this.stripe.accounts.createLoginLink(profile.stripeConnectedAccountId);
+      return { url: link.url };
+    } catch (err: unknown) {
+      const stripeMsg = (err as { raw?: { message?: string } })?.raw?.message;
+      throw new InternalServerErrorException(stripeMsg ?? 'Failed to create Stripe login link');
     }
   }
 }

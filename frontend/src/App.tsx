@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { useEffect } from 'react';
 import { AuthGuard, GuestGuard } from './components/layout/AuthGuard';
 import { AppLayout } from './components/layout/AppLayout';
 import { LandingPage } from './pages/LandingPage';
@@ -11,6 +12,9 @@ import { ProfilePage } from './pages/app/ProfilePage';
 import { OnboardingWizard } from './pages/companion/OnboardingWizard';
 import { CompanionDashboard } from './pages/companion/CompanionDashboard';
 import { CompanionProfilePage } from './pages/companion/CompanionProfile';
+import { CompanionDetailPage } from './pages/app/CompanionDetailPage';
+import { BookingsPage } from './pages/app/BookingsPage';
+import { BookingFlow } from './pages/app/BookingFlow';
 import { useAuthStore } from './store/authStore';
 
 function RootRedirect() {
@@ -19,6 +23,12 @@ function RootRedirect() {
 }
 
 export default function App() {
+  const refreshUser = useAuthStore((s) => s.refreshUser);
+
+  useEffect(() => {
+    refreshUser();
+  }, [refreshUser]);
+
   return (
     <BrowserRouter>
       <Toaster
@@ -41,11 +51,14 @@ export default function App() {
         <Route element={<AuthGuard />}>
           {/* Full-page (no navbar) */}
           <Route path="/become-companion" element={<OnboardingWizard />} />
+          <Route path="/companions/:id/book" element={<BookingFlow />} />
 
           <Route element={<AppLayout />}>
             <Route path="/home" element={<HomePage />} />
             <Route path="/browse" element={<BrowsePage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/companions/:id" element={<CompanionDetailPage />} />
+            <Route path="/bookings" element={<BookingsPage />} />
             <Route path="/companion/dashboard" element={<CompanionDashboard />} />
             <Route path="/companion/profile" element={<CompanionProfilePage />} />
           </Route>

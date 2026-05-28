@@ -59,6 +59,11 @@ export class BookingsController {
     return this.bookingsService.cancelByUser(id, user.id, dto);
   }
 
+  @Get(':id/otp')
+  getOtp(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.bookingsService.getOtpForUser(id, user.id);
+  }
+
   @Post(':id/verify-otp')
   verifyOtp(
     @CurrentUser() user: User,

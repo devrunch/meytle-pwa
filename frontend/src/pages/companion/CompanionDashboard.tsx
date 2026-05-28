@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   IconStar, IconCalendarEvent, IconCurrencyRupee, IconEdit,
   IconToggleLeft, IconToggleRight, IconClock, IconCheck,
   IconX, IconLoader2, IconUser, IconChartBar, IconBell,
   IconMapPin, IconArrowRight, IconBrandStripe, IconWallet,
-  IconCircleCheck, IconAlertCircle,
+  IconCircleCheck, IconAlertCircle, IconUserStar, IconTelescope, IconRefresh,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import { client } from '../../api/client';
@@ -52,7 +52,7 @@ function StatCard({ icon: Icon, label, value, sub, gradient }: {
 }) {
   return (
     <div className="bg-surface rounded-2xl p-5 flex items-start gap-4 shadow-sm border border-white/40">
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
         style={{ background: gradient }}>
         <Icon size={20} className="text-white" />
       </div>
@@ -65,10 +65,74 @@ function StatCard({ icon: Icon, label, value, sub, gradient }: {
   );
 }
 
-function BookingRow({ booking, onAccept, onDecline }: {
+// ── OTP entry modal (companion side) ─────────────────────────────────────────
+
+function OtpEntryModal({ booking, onClose, onStarted }: {
+  booking: Booking;
+  onClose: () => void;
+  onStarted: () => void;
+}) {
+  const [otp, setOtp]             = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleVerify() {
+    if (otp.length !== 6) { toast.error('Enter the 6-digit OTP'); return; }
+    setSubmitting(true);
+    try {
+      await client.post(`/bookings/${booking.id}/verify-otp`, { otpCode: otp });
+      toast.success('OTP verified — session started!');
+      onStarted();
+    } catch {
+      toast.error('Invalid OTP. Ask the client to re-check their code.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-base font-bold text-heading">Enter Session OTP</p>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:bg-gray-100 transition">
+            <IconX size={14} />
+          </button>
+        </div>
+        <p className="text-sm text-muted mb-5">
+          Ask <b>{booking.user?.fullName?.split(' ')[0] ?? 'the client'}</b> to open their Meytle app and read you their 6-digit OTP.
+        </p>
+
+        <input
+          autoFocus
+          type="text" inputMode="numeric" maxLength={6}
+          value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+          placeholder="_ _ _ _ _ _"
+          className="w-full text-center text-3xl font-extrabold tracking-[0.4em] text-heading bg-surface-alt border-2 border-border rounded-xl px-4 py-3 outline-none focus:border-accent-green transition mb-4"
+        />
+
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold text-muted hover:bg-gray-50 transition">
+            Cancel
+          </button>
+          <button onClick={handleVerify} disabled={submitting || otp.length !== 6}
+            className="flex-1 py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-60 transition"
+            style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+            {submitting ? <IconLoader2 size={15} className="animate-spin mx-auto" /> : 'Start Session'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Booking row ───────────────────────────────────────────────────────────────
+
+function BookingRow({ booking, onAccept, onDecline, onEnterOtp }: {
   booking: Booking;
   onAccept: (id: string) => void;
   onDecline: (id: string) => void;
+  onEnterOtp: (b: Booking) => void;
 }) {
   const cfg = STATUS_CFG[booking.status] ?? STATUS_CFG.pending;
   const [busy, setBusy] = useState(false);
@@ -83,9 +147,15 @@ function BookingRow({ booking, onAccept, onDecline }: {
     }
   }
 
+  // Show "Enter OTP" for confirmed bookings within the valid time window
+  const now        = Date.now();
+  const startMs    = new Date(booking.bookedStart).getTime();
+  const inWindow   = booking.status === 'confirmed' &&
+    now >= startMs - 15 * 60_000 && now <= startMs + 45 * 60_000;
+
   return (
     <div className="flex items-start gap-3 p-4 rounded-xl hover:bg-black/[0.02] transition-colors">
-      <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold">
+      <div className="w-10 h-10 rounded-full shrink-0 overflow-hidden bg-linear-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold">
         {booking.user?.avatarUrl
           ? <img src={booking.user.avatarUrl} alt="" className="w-full h-full object-cover" />
           : (booking.user?.fullName?.[0] ?? '?')}
@@ -110,10 +180,17 @@ function BookingRow({ booking, onAccept, onDecline }: {
             <span className="truncate">{booking.meetingSpotText}</span>
           </div>
         )}
+        {inWindow && (
+          <button onClick={() => onEnterOtp(booking)}
+            className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-opacity hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+            <IconCheck size={11} /> Enter OTP to Start
+          </button>
+        )}
       </div>
 
       {booking.status === 'pending' && (
-        <div className="flex flex-col gap-1.5 flex-shrink-0">
+        <div className="flex flex-col gap-1.5 shrink-0">
           <button onClick={() => handle('accept')} disabled={busy}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white transition-transform active:scale-95 disabled:opacity-60"
             style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
@@ -184,7 +261,7 @@ function AvailabilitySection({ profileId }: { profileId: string }) {
 
   return (
     <div className="bg-surface rounded-2xl border border-white/40 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-black/[0.05] flex items-center justify-between"
+      <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between"
         style={{ background: 'linear-gradient(135deg,#F7FBFA,#F6FAFF)' }}>
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
@@ -204,7 +281,7 @@ function AvailabilitySection({ profileId }: { profileId: string }) {
         </button>
       </div>
 
-      <div className="divide-y divide-black/[0.04]">
+      <div className="divide-y divide-black/4">
         {DAYS.map((day, i) => {
           const s = slots[i];
           return (
@@ -245,21 +322,56 @@ function AvailabilitySection({ profileId }: { profileId: string }) {
 
 // ── Stripe Payout Setup ────────────────────────────────────────────────────────
 
-function PayoutSection({ profile }: { profile: CompanionProfile }) {
+function PayoutSection({ profile, onRefresh }: { profile: CompanionProfile; onRefresh: () => Promise<void> }) {
   const navigate = useNavigate();
+  const [loadingLink, setLoadingLink] = useState(false);
+  const [refreshing, setRefreshing]   = useState(false);
+
+  const openStripeDashboard = async () => {
+    setLoadingLink(true);
+    try {
+      const { data } = await client.post<{ url: string }>('/companions/me/stripe-login-link');
+      window.open(data.url, '_blank', 'noopener');
+    } catch {
+      toast.error('Could not open Stripe dashboard');
+    } finally {
+      setLoadingLink(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await onRefresh();
+      toast.success('Payout status updated');
+    } catch {
+      toast.error('Refresh failed');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const header = (
-    <div className="px-5 py-4 border-b border-black/[0.05]"
+    <div className="px-5 py-4 border-b border-black/5"
       style={{ background: 'linear-gradient(135deg,#F7FBFA,#F6FAFF)' }}>
       <div className="flex items-center gap-2.5">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center"
           style={{ background: 'linear-gradient(135deg,#635BFF,#0570DE)' }}>
           <IconBrandStripe size={17} className="text-white" />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-bold text-heading">Payout Account</p>
           <p className="text-[11px] text-muted">Receive earnings via Stripe</p>
         </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          title="Refresh status"
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-body hover:bg-black/5 transition-colors disabled:opacity-40">
+          {refreshing
+            ? <IconLoader2 size={14} className="animate-spin text-accent-green" />
+            : <IconRefresh size={14} />}
+        </button>
       </div>
     </div>
   );
@@ -268,7 +380,7 @@ function PayoutSection({ profile }: { profile: CompanionProfile }) {
     return (
       <div className="bg-surface rounded-2xl border border-white/40 shadow-sm overflow-hidden">
         {header}
-        <div className="p-5">
+        <div className="p-5 space-y-3">
           <div className="flex items-start gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-100">
             <IconCircleCheck size={20} className="text-emerald-500 shrink-0 mt-0.5" />
             <div>
@@ -276,6 +388,15 @@ function PayoutSection({ profile }: { profile: CompanionProfile }) {
               <p className="text-xs text-emerald-600 mt-0.5">Earnings transfer automatically after each session.</p>
             </div>
           </div>
+          <button
+            onClick={openStripeDashboard}
+            disabled={loadingLink}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg,#635BFF,#0570DE)' }}>
+            {loadingLink
+              ? <><IconLoader2 size={14} className="animate-spin" /> Opening…</>
+              : <><IconBrandStripe size={14} /> Go to Stripe Dashboard</>}
+          </button>
         </div>
       </div>
     );
@@ -308,11 +429,13 @@ function PayoutSection({ profile }: { profile: CompanionProfile }) {
           </div>
         )}
         <button
-          onClick={() => navigate('/become-companion')}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90 active:scale-95"
+          onClick={profile.stripeConnectedAccountId ? openStripeDashboard : () => navigate('/become-companion')}
+          disabled={loadingLink}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-60"
           style={{ background: 'linear-gradient(135deg,#635BFF,#0570DE)' }}>
-          <IconBrandStripe size={15} />
-          {profile.stripeConnectedAccountId ? 'Continue Payout Setup' : 'Set Up Payout Account'}
+          {loadingLink
+            ? <><IconLoader2 size={15} className="animate-spin" /> Opening…</>
+            : <><IconBrandStripe size={15} />{profile.stripeConnectedAccountId ? 'Continue in Stripe Dashboard' : 'Set Up Payout Account'}</>}
         </button>
         {!profile.stripeConnectedAccountId && (
           <p className="text-[11px] text-muted text-center">Powered by Stripe · Bank-level security</p>
@@ -332,26 +455,18 @@ type StripeStatus = {
 
 function VerificationSection({ profile }: { profile: CompanionProfile }) {
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!profile.stripeConnectedAccountId) { setLoading(false); return; }
+    if (!profile.stripeConnectedAccountId) return;
     client.get<StripeStatus>('/companions/me/stripe-status')
       .then((r) => setStripeStatus(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {});
   }, [profile.stripeConnectedAccountId]);
 
   const isVerified =
     (profile.identityVerifiedByStripe ?? false) ||
     (profile.identityVerifiedByVeriff ?? false) ||
     (profile.identityVerifiedByAdmin ?? false);
-
-  const methods = [
-    { label: 'Stripe Identity', verified: profile.identityVerifiedByStripe ?? false, desc: 'Automated identity check via Stripe', primary: true },
-    { label: 'Veriff',          verified: profile.identityVerifiedByVeriff ?? false,  desc: 'Government ID verification via Veriff', primary: false },
-    { label: 'Admin Review',    verified: profile.identityVerifiedByAdmin ?? false,   desc: 'Manual review by Meytle team', primary: false },
-  ];
 
   const urgentReqs = stripeStatus
     ? [
@@ -362,84 +477,54 @@ function VerificationSection({ profile }: { profile: CompanionProfile }) {
 
   return (
     <div className="bg-surface rounded-2xl border border-white/40 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-black/[0.05]"
+      <div className="px-5 py-4 flex items-center justify-between"
         style={{ background: 'linear-gradient(135deg,#F7FBFA,#F6FAFF)' }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: isVerified ? 'linear-gradient(135deg,#00D4AA,#4F8CFF)' : 'linear-gradient(135deg,#F59E0B,#EF9234)' }}>
-              {isVerified
-                ? <IconCircleCheck size={17} className="text-white" />
-                : <IconAlertCircle size={17} className="text-white" />}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-heading">Identity Verification</p>
-              <p className="text-[11px] text-muted">{isVerified ? 'Your identity is confirmed' : 'Verification required to go live'}</p>
-            </div>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: isVerified ? 'linear-gradient(135deg,#00D4AA,#4F8CFF)' : 'linear-gradient(135deg,#F59E0B,#EF9234)' }}>
+            {isVerified
+              ? <IconCircleCheck size={17} className="text-white" />
+              : <IconAlertCircle size={17} className="text-white" />}
           </div>
-          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
-            style={isVerified ? { background: '#D1FAE5', color: '#059669' } : { background: '#FEF3C7', color: '#D97706' }}>
-            {isVerified ? 'Verified' : 'Pending'}
-          </span>
-        </div>
-      </div>
-
-      <div className="p-5 space-y-3">
-        {methods.map((m, i) => (
-          <div key={m.label} className="flex items-center gap-3 px-3.5 py-3 rounded-xl"
-            style={{ background: m.verified ? '#F0FDF4' : '#F8FAFC' }}>
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={m.verified ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : { background: '#E2E8F0' }}>
-              {m.verified
-                ? <IconCheck size={13} className="text-white" />
-                : <span className="text-[11px] font-bold text-slate-400">{i + 1}</span>}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-xs font-semibold text-heading">{m.label}</p>
-                {m.primary && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-600">Primary</span>
-                )}
-              </div>
-              <p className="text-[10px] text-muted">{m.desc}</p>
-            </div>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-              style={m.verified ? { background: '#DCFCE7', color: '#16A34A' } : { background: '#F1F5F9', color: '#94A3B8' }}>
-              {m.verified ? 'Verified' : 'Pending'}
-            </span>
-          </div>
-        ))}
-
-        {loading && profile.stripeConnectedAccountId && (
-          <div className="flex items-center gap-2 text-xs text-muted px-1">
-            <IconLoader2 size={12} className="animate-spin" /> Loading Stripe requirements…
-          </div>
-        )}
-
-        {!loading && urgentReqs.length > 0 && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5">
-            <p className="text-xs font-semibold text-amber-700 mb-2 flex items-center gap-1.5">
-              <IconAlertCircle size={12} /> Stripe needs more info
+          <div>
+            <p className="text-sm font-bold text-heading">Identity Verification</p>
+            <p className="text-[11px] text-muted">
+              {isVerified ? 'Your identity is confirmed' : 'Required before going live'}
             </p>
-            <ul className="space-y-1.5">
-              {urgentReqs.map(({ item, level }) => (
-                <li key={item} className="flex items-start gap-2 text-[11px]">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1 ${level === 'past_due' ? 'bg-red-500' : 'bg-amber-500'}`} />
-                  <span className={level === 'past_due' ? 'text-red-600' : 'text-amber-700'}>
-                    {item.replace(/_/g, ' ').replace(/\./g, ' › ')}
-                  </span>
-                </li>
-              ))}
-            </ul>
           </div>
-        )}
-
-        {!isVerified && (
-          <p className="text-[11px] text-muted leading-relaxed px-1">
-            You'll be verified once any path above is complete. Set up your payout account to trigger Stripe identity verification.
-          </p>
-        )}
+        </div>
+        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+          style={isVerified ? { background: '#D1FAE5', color: '#059669' } : { background: '#FEF3C7', color: '#D97706' }}>
+          {isVerified ? 'Verified' : 'Pending'}
+        </span>
       </div>
+
+      {(!isVerified || urgentReqs.length > 0) && (
+        <div className="px-5 py-4 space-y-3 border-t border-black/5">
+          {urgentReqs.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+              <p className="text-xs font-semibold text-amber-700 mb-2 flex items-center gap-1.5">
+                <IconAlertCircle size={12} /> Stripe needs more info
+              </p>
+              <ul className="space-y-1.5">
+                {urgentReqs.map(({ item, level }) => (
+                  <li key={item} className="flex items-start gap-2 text-[11px]">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${level === 'past_due' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                    <span className={level === 'past_due' ? 'text-red-600' : 'text-amber-700'}>
+                      {item.replace(/_/g, ' ').replace(/\./g, ' › ')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!isVerified && urgentReqs.length === 0 && (
+            <p className="text-[11px] text-muted leading-relaxed">
+              Complete your payout account setup to verify your identity automatically via Stripe.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -455,20 +540,32 @@ export function CompanionDashboard() {
   const [togglingAvail, setTogglingAvail] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'upcoming' | 'past'>('all');
 
+  const syncStripeStatus = useCallback(async () => {
+    const r = await client.get('/companions/me/stripe-status');
+    setProfile((p) => {
+      if (!p) return p;
+      const updated: typeof p = {
+        ...p,
+        stripePayoutsEnabled:     r.data.payoutsEnabled,
+        identityVerifiedByStripe: r.data.identityVerified,
+      };
+      if (r.data.payoutsEnabled && r.data.identityVerified && p.profileStatus === 'pending_verification') {
+        updated.profileStatus = 'active';
+      }
+      return updated;
+    });
+  }, []);
+
   // Handle Stripe redirect back
   useEffect(() => {
     const stripeParam = searchParams.get('stripe');
     if (stripeParam === 'success') {
       toast.success('Stripe setup complete! Syncing payout status…');
-      client.get('/companions/me/stripe-status')
-        .then((r) => {
-          if (r.data.payoutsEnabled) setProfile((p) => p ? { ...p, stripePayoutsEnabled: true } : p);
-        })
-        .catch(() => {});
+      syncStripeStatus().catch(() => {});
     } else if (stripeParam === 'refresh') {
       toast('Stripe onboarding session expired. Please try again.', { icon: '⚠️' });
     }
-  }, [searchParams]);
+  }, [searchParams, syncStripeStatus]);
 
   const load = useCallback(async () => {
     try {
@@ -478,22 +575,15 @@ export function CompanionDashboard() {
       ]);
       setProfile(prof);
       setBookings(bkgs);
-      // Sync Stripe payout + identity status in the background
       if (prof.stripeConnectedAccountId) {
-        client.get('/companions/me/stripe-status')
-          .then((r) => setProfile((p) => p ? {
-            ...p,
-            stripePayoutsEnabled:    r.data.payoutsEnabled,
-            identityVerifiedByStripe: r.data.identityVerified,
-          } : p))
-          .catch(() => {});
+        syncStripeStatus().catch(() => {});
       }
     } catch {
       toast.error('Failed to load dashboard');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [syncStripeStatus]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -560,7 +650,9 @@ export function CompanionDashboard() {
   if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
-        <div className="text-5xl mb-4">🌟</div>
+        <div className="mb-4 flex items-center justify-center w-16 h-16 rounded-2xl mx-auto" style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+          <IconUserStar size={32} className="text-white" />
+        </div>
         <h2 className="text-xl font-bold text-heading mb-2">No companion profile yet</h2>
         <p className="text-muted text-sm mb-6">Complete the onboarding to start earning.</p>
         <Link to="/become-companion"
@@ -579,7 +671,7 @@ export function CompanionDashboard() {
       <div className="rounded-2xl overflow-hidden shadow-sm"
         style={{ background: 'linear-gradient(135deg,#00D4AA22,#4F8CFF22)' }}>
         <div className="flex items-start gap-4 p-5 md:p-6">
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden flex-shrink-0 bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-2xl font-bold shadow-md">
+          <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden shrink-0 bg-linear-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-2xl font-bold shadow-md">
             {profile.profilePhotoUrl
               ? <img src={profile.profilePhotoUrl} alt="" className="w-full h-full object-cover" />
               : (profile.displayName?.[0] ?? '?')}
@@ -660,7 +752,7 @@ export function CompanionDashboard() {
         <StatCard icon={IconCalendarEvent} label="Upcoming" value={String(upcomingBookings.length)}
           sub="confirmed bookings" gradient="linear-gradient(135deg,#4F8CFF,#818CF8)" />
         <StatCard icon={IconStar} label="Rating"
-          value={profile.ratingAvg != null ? profile.ratingAvg.toFixed(1) : '—'}
+          value={profile.ratingAvg != null ? Number(profile.ratingAvg).toFixed(1) : '—'}
           sub={profile.ratingCount ? `${profile.ratingCount} reviews` : 'No reviews yet'}
           gradient="linear-gradient(135deg,#F59E0B,#EF4444)" />
         <StatCard icon={IconChartBar} label="Total Bookings" value={String(bookings.length)}
@@ -673,7 +765,7 @@ export function CompanionDashboard() {
         {/* Bookings list */}
         <div className="flex-1 min-w-0">
           <div className="bg-surface rounded-2xl shadow-sm border border-white/40 overflow-hidden">
-            <div className="flex border-b border-black/[0.06]">
+            <div className="flex border-b border-black/6">
               {(['all', 'pending', 'upcoming', 'past'] as const).map((tab) => {
                 const counts = {
                   all: bookings.length,
@@ -698,11 +790,11 @@ export function CompanionDashboard() {
 
             {filteredBookings.length === 0 ? (
               <div className="py-12 text-center">
-                <div className="text-3xl mb-3">📭</div>
+                <IconTelescope size={32} className="text-muted mx-auto mb-3" />
                 <p className="text-sm text-muted">No {activeTab === 'all' ? '' : activeTab} bookings yet</p>
               </div>
             ) : (
-              <div className="divide-y divide-black/[0.04]">
+              <div className="divide-y divide-black/4">
                 {filteredBookings.map((b) => (
                   <BookingRow key={b.id} booking={b} onAccept={handleAccept} onDecline={handleDecline} />
                 ))}
@@ -745,7 +837,7 @@ export function CompanionDashboard() {
                 { label: 'Manage Bookings', to: `/bookings`, icon: IconCalendarEvent },
               ].map(({ label, to, icon: Icon }) => (
                 <Link key={label} to={to}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-black/[0.03] transition-colors group">
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-black/3 transition-colors group">
                   <div className="flex items-center gap-2.5">
                     <Icon size={15} className="text-muted" />
                     <span className="text-sm text-heading">{label}</span>
@@ -773,7 +865,7 @@ export function CompanionDashboard() {
         <AvailabilitySection profileId={profile.id} />
         <div className="space-y-4">
           <VerificationSection profile={profile} />
-          <PayoutSection profile={profile} />
+          <PayoutSection profile={profile} onRefresh={syncStripeStatus} />
         </div>
       </div>
     </div>

@@ -125,12 +125,14 @@ export function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-2.5">
-            {/* Become a Companion CTA — always visible */}
-            <Link to="/become-companion"
+            {/* Companion CTA / Dashboard — desktop */}
+            <Link
+              to={isCompanion() ? '/companion/dashboard' : '/become-companion'}
               className="hidden md:flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full text-white whitespace-nowrap shadow-sm hover:opacity-90 transition-opacity"
               style={{ background: 'linear-gradient(135deg,#00D4AA 0%,#00C2D8 50%,#4F8CFF 100%)' }}>
-              <IconUserStar size={13} stroke={2} />
-              Become a Companion
+              {isCompanion()
+                ? <><IconLayoutDashboard size={13} stroke={2} /> Dashboard</>
+                : <><IconUserStar size={13} stroke={2} /> Become a Companion</>}
             </Link>
 
             {/* Avatar dropdown */}

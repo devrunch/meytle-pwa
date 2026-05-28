@@ -31,7 +31,7 @@ function CompanionCard({ companion }: { companion: CompanionProfile }) {
   const services = companion.services?.map((s) => SERVICE_LABELS[s.serviceType]).filter(Boolean) ?? [];
 
   return (
-    <Link to={`/book/${companion.id}`}
+    <Link to={`/companions/${companion.id}`}
       className="group bg-surface rounded-2xl border border-border overflow-hidden hover:border-accent-green/50 hover:shadow-xl transition-all duration-300 flex flex-col">
       <div className="relative overflow-hidden bg-surface-alt" style={{ paddingBottom: '75%' }}>
         <div className="absolute inset-0">

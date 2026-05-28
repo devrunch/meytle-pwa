@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '../types';
+import { client } from '../api/client';
 
 interface AuthState {
   token: string | null;
@@ -10,6 +11,7 @@ interface AuthState {
   logout: () => void;
   isAuthenticated: () => boolean;
   isCompanion: () => boolean;
+  refreshUser: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -22,6 +24,16 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ token: null, user: null }),
       isAuthenticated: () => !!get().token,
       isCompanion: () => get().user?.roles.includes('companion' as any) ?? false,
+      refreshUser: async () => {
+        if (!get().token) return;
+        try {
+          const { data } = await client.get<User>('/auth/me');
+          set({ user: data });
+        } catch {
+          // token expired or invalid — clear session
+          set({ token: null, user: null });
+        }
+      },
     }),
     { name: 'auth-store' },
   ),

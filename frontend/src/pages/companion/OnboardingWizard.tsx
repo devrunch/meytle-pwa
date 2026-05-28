@@ -7,6 +7,7 @@ import {
   IconCoffee, IconToolsKitchen2, IconMusic, IconPlane, IconRun,
   IconPalette, IconLeaf, IconMovie, IconShoppingBag, IconDeviceGamepad,
   IconClock, IconBrandStripe, IconWallet, IconChevronUp, IconChevronDown,
+  IconHeart, IconTags, IconMessageDots, IconShieldCheck,
 } from '@tabler/icons-react';
 import { loadConnectAndInitialize } from '@stripe/connect-js';
 import { ConnectComponentsProvider, ConnectAccountOnboarding } from '@stripe/react-connect-js';
@@ -39,6 +40,25 @@ const SERVICES: {
 const RATE_PRESETS = [500, 800, 1000, 1500, 2000];
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const INTEREST_TAGS = [
+  'Travel', 'Coffee', 'Dining', 'Hiking', 'Fitness', 'Music',
+  'Concerts', 'Art', 'Museums', 'Cinema', 'Gaming', 'Reading',
+  'Photography', 'Cooking', 'Fashion', 'Sports', 'Dancing',
+  'Yoga', 'Nightlife', 'Karaoke', 'Adventure', 'Comedy',
+  'Theatre', 'Road Trips',
+] as const;
+
+const PROMPTS = [
+  'My go-to weekend...',
+  "I'm known for...",
+  'I get excited about...',
+  'My hidden talent...',
+  'The best way to spend a Sunday...',
+  "I'm weirdly good at...",
+  'Things I could talk about for hours...',
+  'My love language...',
+] as const;
 
 // ── Time picker helpers ────────────────────────────────────────────────────────
 
@@ -137,12 +157,15 @@ const STEP_COPY = [
   { headline: 'Your name is your\nbrand',           sub: 'A great display name makes clients remember you.' },
   { headline: 'Bios get 2×\nmore bookings',        sub: 'Clients connect with your story before they ever book.' },
   { headline: 'Faces build\ntrust instantly',       sub: 'Profiles with photos receive 3× more booking requests.' },
-  { headline: 'Pick your\npassions',                sub: 'Clients search by experience type — be their perfect match.' },
-  { headline: 'You control\nthe terms',             sub: 'Fair, transparent pricing that works for your schedule.' },
-  { headline: 'Be discoverable\nlocally',           sub: 'Nearby clients book faster and leave better reviews.' },
-  { headline: 'Set your\nschedule',                 sub: 'Clients see when you\'re open — more bookings, fewer surprises.' },
-  { headline: 'Almost there —\nyou\'re ready',     sub: 'Review your profile before we send it for verification.' },
-  { headline: 'Get paid for\nevery session',        sub: 'Connect your bank account so we can send you money instantly.' },
+  { headline: 'Show what you\nlove',               sub: 'Interests help clients find their perfect match faster.' },
+  { headline: 'Stand out from\nthe crowd',         sub: 'A great prompt answer gets 2× more profile visits.' },
+  { headline: 'Pick your\npassions',               sub: 'Clients search by experience type — be their perfect match.' },
+  { headline: 'You control\nthe terms',            sub: 'Fair, transparent pricing that works for your schedule.' },
+  { headline: 'Be discoverable\nlocally',          sub: 'Nearby clients book faster and leave better reviews.' },
+  { headline: 'Set your\nschedule',                sub: "Clients see when you're open — more bookings, fewer surprises." },
+  { headline: 'Almost there —\nyou\'re ready',    sub: 'Review your profile before we send it for verification.' },
+  { headline: 'Build trust\ninstantly',            sub: 'A verified badge makes clients feel safe — and boosts bookings.' },
+  { headline: 'Get paid for\nevery session',       sub: 'Connect your bank account so we can send you money instantly.' },
 ];
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -154,6 +177,8 @@ interface FormData {
   displayName: string;
   bio: string;
   profilePhotoUrl: string;
+  interests: string[];
+  prompt: { question: string; answer: string };
   services: ServiceType[];
   hourlyRate: number;
   areaLabel: string;
@@ -161,12 +186,16 @@ interface FormData {
   coords: [number, number];
   selectedAreaIds: string[];
   slots: DaySlot[];
+  selfieUrl: string;
+  govtIdFrontUrl: string;
 }
 
 const INITIAL: FormData = {
   displayName: '',
   bio: '',
   profilePhotoUrl: '',
+  interests: [],
+  prompt: { question: '', answer: '' },
   services: [],
   hourlyRate: 1000,
   areaLabel: '',
@@ -174,66 +203,114 @@ const INITIAL: FormData = {
   coords: [77.1025, 28.7041],
   selectedAreaIds: [],
   slots: Array(7).fill(null).map(() => ({ ...DEFAULT_SLOT })),
+  selfieUrl: '',
+  govtIdFrontUrl: '',
 };
 
-// Steps: 0=welcome 1=name 2=bio 3=photo 4=services 5=rate 6=location 7=availability 8=review 9=payout
-const TOTAL_STEPS = 10;
+// Steps: 0=welcome 1=name 2=bio 3=photo 4=interests 5=prompt 6=services 7=rate 8=location 9=availability 10=review 11=identity 12=payout
+const TOTAL_STEPS = 13;
 
 // ── Left panel: live preview ────────────────────────────────────────────────────
 
+function calcAge(dob: string | null | undefined): number | null {
+  if (!dob) return null;
+  return Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+}
+
 function LivePreviewCard({ data }: { data: FormData }) {
+  const user = useAuthStore((s) => s.user);
+  const age = calcAge(user?.dateOfBirth);
   const initial = data.displayName?.[0]?.toUpperCase() ?? '?';
+
   return (
-    <div className="bg-white/10 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/20 shadow-2xl w-full max-w-[280px]">
-      <div className="relative h-40">
-        {data.profilePhotoUrl ? (
-          <img src={data.profilePhotoUrl} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-white/10">
-            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl font-bold text-white">
-              {initial}
-            </div>
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
-          <div>
-            <p className="text-white font-bold text-sm leading-tight">
-              {data.displayName || 'Your Name'}
-            </p>
-            <p className="text-white/70 text-[11px] mt-0.5">
-              {data.areaLabel || 'Your Area'}{data.areaLabel && data.radiusKm ? ` · ${data.radiusKm}km` : ''}
-            </p>
-          </div>
-          {data.hourlyRate >= 500 && (
-            <p className="text-white font-bold text-sm">
-              ₹{data.hourlyRate.toLocaleString('en-IN')}
-              <span className="text-white/60 text-[10px] font-normal">/hr</span>
-            </p>
-          )}
+    <div className="relative w-55 h-85 rounded-3xl overflow-hidden shadow-2xl border border-white/10 select-none">
+      {/* Photo / placeholder */}
+      {data.profilePhotoUrl ? (
+        <img src={data.profilePhotoUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center"
+          style={{ background: 'linear-gradient(160deg,#00A896,#4F8CFF)' }}>
+          <span className="text-6xl font-extrabold text-white/80">{initial}</span>
         </div>
+      )}
+
+      {/* Gradient overlay */}
+      <div className="absolute inset-0"
+        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 45%, transparent 70%)' }} />
+
+      {/* Verified badge */}
+      <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/30 backdrop-blur-sm px-2 py-1 rounded-full">
+        <IconShieldCheck size={11} className="text-teal-300" />
+        <span className="text-[10px] text-teal-200 font-bold">Verified</span>
       </div>
-      <div className="p-3">
-        {data.bio ? (
-          <p className="text-white/80 text-[11px] leading-relaxed line-clamp-2">{data.bio}</p>
-        ) : (
-          <p className="text-white/30 text-[11px] italic">Your bio will appear here…</p>
+
+      {/* Rate badge */}
+      {data.hourlyRate >= 500 && (
+        <div className="absolute top-3 left-3 bg-black/30 backdrop-blur-sm px-2 py-1 rounded-full">
+          <span className="text-[10px] text-white font-bold">
+            ₹{data.hourlyRate.toLocaleString('en-IN')}/hr
+          </span>
+        </div>
+      )}
+
+      {/* Bottom content */}
+      <div className="absolute bottom-0 left-0 right-0 p-4">
+        {/* Name + age */}
+        <div className="flex items-baseline gap-2 mb-2">
+          <p className="text-white text-xl font-extrabold leading-tight">
+            {data.displayName || 'Your Name'}
+          </p>
+          {age && <span className="text-white/70 text-base font-medium">{age}</span>}
+        </div>
+
+        {/* Prompt card */}
+        {data.prompt.answer && (
+          <div className="mb-2.5 bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20">
+            <p className="text-[9px] text-white/50 font-semibold uppercase tracking-wide mb-0.5">
+              {data.prompt.question}
+            </p>
+            <p className="text-[11px] text-white leading-snug line-clamp-2">{data.prompt.answer}</p>
+          </div>
         )}
-        {data.services.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2.5">
-            {data.services.slice(0, 4).map((s) => {
+
+        {/* Interest tags */}
+        {data.interests.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {data.interests.slice(0, 3).map((tag) => (
+              <span key={tag} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/25">
+                {tag}
+              </span>
+            ))}
+            {data.interests.length > 3 && (
+              <span className="text-[10px] text-white/50 self-center">+{data.interests.length - 3}</span>
+            )}
+          </div>
+        )}
+
+        {/* Service tags */}
+        {data.interests.length === 0 && data.services.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {data.services.slice(0, 3).map((s) => {
               const svc = SERVICES.find((x) => x.value === s);
               return svc ? (
-                <span key={s} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white">
+                <span key={s} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/25">
                   {svc.label}
                 </span>
               ) : null;
             })}
-            {data.services.length > 4 && (
-              <span className="text-[10px] text-white/50">+{data.services.length - 4}</span>
-            )}
           </div>
         )}
+
+        {/* Action buttons */}
+        <div className="flex items-center justify-center gap-5 mt-1">
+          <div className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-lg">
+            <IconStar size={16} className="text-amber-300 fill-amber-300" />
+          </div>
+          <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-xl"
+            style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+            <IconHeart size={20} className="text-white fill-white" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -243,7 +320,7 @@ function LeftPanel({ step, data }: { step: number; data: FormData }) {
   const copy = STEP_COPY[step] ?? STEP_COPY[0];
   return (
     <div
-      className="hidden md:flex flex-col justify-between p-10 lg:p-14 flex-shrink-0 w-[400px] lg:w-[460px]"
+      className="hidden md:flex flex-col justify-between p-10 lg:p-14 shrink-0 w-100 lg:w-115"
       style={{ background: 'linear-gradient(160deg,#00A896 0%,#00C2D8 40%,#4F8CFF 100%)' }}
     >
       <div className="flex items-center gap-2">
@@ -259,7 +336,7 @@ function LeftPanel({ step, data }: { step: number; data: FormData }) {
           <h2 className="text-white font-extrabold text-2xl lg:text-3xl leading-tight whitespace-pre-line">
             {copy.headline}
           </h2>
-          <p className="text-white/70 text-sm mt-2 leading-relaxed max-w-[220px] mx-auto">
+          <p className="text-white/70 text-sm mt-2 leading-relaxed max-w-55 mx-auto">
             {copy.sub}
           </p>
         </div>
@@ -466,6 +543,121 @@ function StepPhoto({ data, onChange }: { data: FormData; onChange: (d: Partial<F
     </div>
   );
 }
+
+// ── Step 4: Interests ──────────────────────────────────────────────────────────
+
+function StepInterests({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  const toggle = (tag: string) => {
+    const curr = data.interests;
+    if (curr.includes(tag)) {
+      onChange({ interests: curr.filter((t) => t !== tag) });
+    } else if (curr.length < 6) {
+      onChange({ interests: [...curr, tag] });
+    }
+  };
+
+  return (
+    <div>
+      <StepHeader
+        icon={IconTags}
+        title="What are you into?"
+        sub="Pick up to 6 interests. Clients find companions who share their vibe."
+      />
+      <div className="flex flex-wrap gap-2">
+        {INTEREST_TAGS.map((tag) => {
+          const active = data.interests.includes(tag);
+          const maxed = data.interests.length >= 6 && !active;
+          return (
+            <button
+              key={tag}
+              onClick={() => toggle(tag)}
+              disabled={maxed}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-sm font-semibold transition-all active:scale-95 ${
+                active
+                  ? 'text-white border-transparent shadow-md'
+                  : maxed
+                  ? 'border-border text-muted/30 cursor-not-allowed'
+                  : 'border-border text-body hover:border-accent-green/40 hover:bg-surface-alt'
+              }`}
+              style={active ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+              {active && <IconCheck size={12} className="text-white shrink-0" />}
+              {tag}
+            </button>
+          );
+        })}
+      </div>
+      {data.interests.length > 0 && (
+        <p className="text-center text-xs text-accent-green font-semibold mt-4">
+          {data.interests.length}/6 selected
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Step 5: Prompt ─────────────────────────────────────────────────────────────
+
+function StepPrompt({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  const [picked, setPicked] = useState(data.prompt.question);
+
+  const selectQ = (q: string) => {
+    setPicked(q);
+    onChange({ prompt: { question: q, answer: data.prompt.question === q ? data.prompt.answer : '' } });
+  };
+
+  const clearQ = () => {
+    setPicked('');
+    onChange({ prompt: { question: '', answer: '' } });
+  };
+
+  return (
+    <div>
+      <StepHeader
+        icon={IconMessageDots}
+        title="Share your vibe"
+        sub="A prompt answer makes your profile 2× more memorable. Pick one and be yourself."
+      />
+
+      {picked ? (
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-3 px-4 py-3 rounded-xl border-2 border-accent-green/40 bg-teal-50/60">
+            <p className="text-sm font-bold text-heading leading-snug">{picked}</p>
+            <button onClick={clearQ} className="text-muted hover:text-red-500 transition-colors shrink-0 mt-0.5">
+              <IconX size={14} />
+            </button>
+          </div>
+          <textarea
+            value={data.prompt.answer}
+            onChange={(e) => onChange({ prompt: { question: picked, answer: e.target.value } })}
+            placeholder="Write your answer…"
+            maxLength={150}
+            rows={4}
+            autoFocus
+            className="w-full text-sm text-body bg-surface-alt border-2 border-border rounded-xl px-4 py-3 outline-none placeholder:text-muted/40 focus:border-accent-green/60 focus:ring-4 focus:ring-accent-green/10 transition-all resize-none leading-relaxed"
+          />
+          <div className="flex justify-between text-[11px] text-muted px-1">
+            <span>Be specific and fun</span>
+            <span className={data.prompt.answer.length > 120 ? 'text-amber-500' : ''}>
+              {data.prompt.answer.length}/150
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {PROMPTS.map((q) => (
+            <button key={q} onClick={() => selectQ(q)}
+              className="w-full text-left px-4 py-3.5 rounded-xl border border-border bg-surface hover:border-accent-green/40 hover:bg-teal-50/40 text-sm font-medium text-heading transition-all active:scale-[0.99] flex items-center justify-between gap-3">
+              <span>{q}</span>
+              <IconArrowRight size={14} className="text-muted shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Step 6: Services ───────────────────────────────────────────────────────────
 
 function StepServices({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
   const toggle = (v: ServiceType) => {
@@ -935,7 +1127,113 @@ function StepReview({
   );
 }
 
-// ── Step 9: Payout setup (embedded Stripe Connect) ────────────────────────────
+// ── Step 11: Identity verification ─────────────────────────────────────────────
+
+function UploadZone({
+  label, hint, url, uploading, onFile, onClear,
+}: {
+  label: string; hint: string; url: string; uploading: boolean;
+  onFile: (f: File) => void; onClear: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div>
+      <p className="text-xs font-bold text-heading mb-1.5">{label}</p>
+      <input ref={ref} type="file" accept="image/*" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
+      <button onClick={() => ref.current?.click()} disabled={uploading} className="w-full group">
+        <div className={`rounded-xl border-2 transition-all h-24 flex items-center justify-center gap-3 ${
+          url ? 'border-accent-green/50' : 'border-dashed border-border hover:border-accent-green/40'
+        }`}
+          style={!url ? { background: 'linear-gradient(135deg,#00D4AA08,#4F8CFF08)' } : {}}>
+          {url ? (
+            <div className="relative w-full h-full rounded-xl overflow-hidden">
+              <img src={url} alt={label} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                <p className="text-white text-xs font-semibold">Change</p>
+              </div>
+            </div>
+          ) : uploading ? (
+            <><IconLoader2 size={20} className="text-accent-green animate-spin" /><span className="text-xs text-muted">Uploading…</span></>
+          ) : (
+            <><IconCamera size={20} className="text-muted group-hover:text-accent-green transition-colors" /><span className="text-xs text-muted font-medium">{hint}</span></>
+          )}
+        </div>
+      </button>
+      {url && (
+        <button onClick={onClear} className="text-[11px] text-muted hover:text-red-500 transition-colors mt-1 flex items-center gap-1">
+          <IconX size={10} /> Remove
+        </button>
+      )}
+    </div>
+  );
+}
+
+function StepIdentity({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  const [uploadingSelfie, setUploadingSelfie] = useState(false);
+  const [uploadingId, setUploadingId]         = useState(false);
+
+  const upload = async (file: File, field: 'selfieUrl' | 'govtIdFrontUrl', setLoading: (v: boolean) => void) => {
+    setLoading(true);
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const { data: res } = await client.post<{ url: string }>('/uploads/photo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      onChange({ [field]: res.url });
+      toast.success('Uploaded!');
+    } catch {
+      toast.error('Upload failed, try again');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <StepHeader
+        icon={IconShieldCheck}
+        title="Verify your identity"
+        sub="Required to go live. Upload a selfie and a government-issued ID — takes 2 minutes."
+      />
+
+      <div className="space-y-4 mb-5">
+        <UploadZone
+          label="Selfie with face clearly visible"
+          hint="Take or upload a selfie"
+          url={data.selfieUrl}
+          uploading={uploadingSelfie}
+          onFile={(f) => upload(f, 'selfieUrl', setUploadingSelfie)}
+          onClear={() => onChange({ selfieUrl: '' })}
+        />
+        <UploadZone
+          label="Government ID — front (Aadhaar, PAN, Passport)"
+          hint="Upload front of your ID"
+          url={data.govtIdFrontUrl}
+          uploading={uploadingId}
+          onFile={(f) => upload(f, 'govtIdFrontUrl', setUploadingId)}
+          onClear={() => onChange({ govtIdFrontUrl: '' })}
+        />
+      </div>
+
+      <div className="bg-surface-alt rounded-xl p-3.5 space-y-2">
+        {[
+          'Your documents are encrypted and never shared publicly',
+          'Verification is reviewed by our team within 24 hours',
+          'You get a verified badge once approved',
+        ].map((tip) => (
+          <div key={tip} className="flex items-start gap-2 text-xs text-muted">
+            <IconCheck size={12} className="text-accent-green mt-0.5 shrink-0" />
+            {tip}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Step 12: Payout setup (embedded Stripe Connect) ────────────────────────────
 
 function StepPayout({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const [stripeInstance, setStripeInstance] = useState<ReturnType<typeof loadConnectAndInitialize> | null>(null);
@@ -1101,9 +1399,22 @@ export function OnboardingWizard() {
     client.get<CompanionProfile>('/companions/me/profile')
       .then(({ data: profile }) => {
         if (profile.stripePayoutsEnabled) {
-          navigate('/companion/dashboard', { replace: true });
+          // Already fully set up — open Stripe Express dashboard
+          client.post<{ url: string }>('/companions/me/stripe-login-link')
+            .then(({ data }) => { window.location.href = data.url; })
+            .catch(() => navigate('/companion/dashboard', { replace: true }));
         } else {
-          setStep(9);
+          // Pre-populate form from existing profile then jump to payout
+          setData((prev) => ({
+            ...prev,
+            displayName:     profile.displayName ?? prev.displayName,
+            bio:             profile.bio ?? prev.bio,
+            profilePhotoUrl: profile.profilePhotoUrl ?? prev.profilePhotoUrl,
+            hourlyRate:      profile.hourlyRatePaisa ? profile.hourlyRatePaisa / 100 : prev.hourlyRate,
+            services:        profile.services?.map((s) => s.serviceType) ?? prev.services,
+            interests:       profile.user?.interests ?? prev.interests,
+          }));
+          setStep(12); // jump straight to payout
         }
       })
       .catch(() => { /* no profile yet — start from step 0 */ });
@@ -1115,12 +1426,15 @@ export function OnboardingWizard() {
   const canNext = (): boolean => {
     if (step === 0) return true;
     if (step === 1) return data.displayName.trim().length >= 1;
-    if (step === 2) return true;
-    if (step === 3) return true;
-    if (step === 4) return data.services.length >= 1;
-    if (step === 5) return data.hourlyRate >= 500;
-    if (step === 6) return data.selectedAreaIds.length >= 1;
-    if (step === 7) return true; // availability optional
+    if (step === 2) return true;   // bio optional
+    if (step === 3) return true;   // photo optional
+    if (step === 4) return true;   // interests optional
+    if (step === 5) return true;   // prompt optional
+    if (step === 6) return data.services.length >= 1;
+    if (step === 7) return data.hourlyRate >= 500;
+    if (step === 8) return data.selectedAreaIds.length >= 1;
+    if (step === 9) return true;   // availability optional
+    if (step === 11) return true;  // identity optional
     return true;
   };
 
@@ -1144,15 +1458,26 @@ export function OnboardingWizard() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await client.post('/companions/me', {
-        displayName:         data.displayName.trim(),
-        bio:                 data.bio.trim() || undefined,
-        profilePhotoUrl:     data.profilePhotoUrl || undefined,
-        hourlyRatePaisa:     data.hourlyRate * 100,
-        serviceAreaCentre:   data.coords,
-        serviceAreaRadiusKm: data.radiusKm,
-        services:            data.services,
-      });
+      // prompt stored as "{question}\n{answer}" in user.bio so detail page can parse it
+      const promptText = data.prompt.question && data.prompt.answer
+        ? `${data.prompt.question}\n${data.prompt.answer.trim()}`
+        : undefined;
+
+      await Promise.all([
+        client.post('/companions/me', {
+          displayName:         data.displayName.trim(),
+          bio:                 data.bio.trim() || undefined,
+          profilePhotoUrl:     data.profilePhotoUrl || undefined,
+          hourlyRatePaisa:     data.hourlyRate * 100,
+          serviceAreaCentre:   data.coords,
+          serviceAreaRadiusKm: data.radiusKm,
+          services:            data.services,
+        }),
+        client.patch('/users/me', {
+          ...(data.interests.length > 0 && { interests: data.interests }),
+          ...(promptText !== undefined && { bio: promptText }),
+        }),
+      ]);
 
       // Save availability slots (if any enabled)
       const enabledSlots = data.slots
@@ -1167,12 +1492,12 @@ export function OnboardingWizard() {
       if (token) setAuth(token, me.data);
 
       toast.success('Profile created! Now set up your payouts.');
-      goTo(9, 'forward');
+      goTo(12, 'forward');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       if (typeof msg === 'string' && msg.includes('already exists')) {
         toast('Profile already exists — set up your payouts.', { icon: 'ℹ️' });
-        goTo(9, 'forward');
+        goTo(12, 'forward');
       } else {
         toast.error('Submission failed, please try again');
       }
@@ -1181,9 +1506,9 @@ export function OnboardingWizard() {
     }
   };
 
-  const isReview  = step === 8;
-  const isPayout  = step === 9;
-  const isFullBleed = step === 6;
+  const isReview    = step === 10;
+  const isPayout    = step === 12;
+  const isFullBleed = step === 8;
   const progress  = step === 0 ? 0 : Math.round((step / (TOTAL_STEPS - 1)) * 100);
 
   return (
@@ -1197,7 +1522,7 @@ export function OnboardingWizard() {
         {/* Top nav */}
         <div className="flex items-center justify-between px-6 md:px-12 lg:px-16 pt-5 pb-3">
           <button onClick={handleBack}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-muted hover:bg-black/[0.04] hover:text-body transition-colors">
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-muted hover:bg-black/4 hover:text-body transition-colors">
             {step === 0 ? <IconX size={18} /> : <IconArrowLeft size={18} />}
           </button>
 
@@ -1247,15 +1572,18 @@ export function OnboardingWizard() {
               transition: 'opacity 0.18s ease, transform 0.18s ease',
             }}>
             <div className="max-w-xl">
-              {step === 0 && <StepWelcome onNext={handleNext} />}
-              {step === 1 && <StepName data={data} onChange={update} />}
-              {step === 2 && <StepBio data={data} onChange={update} />}
-              {step === 3 && <StepPhoto data={data} onChange={update} />}
-              {step === 4 && <StepServices data={data} onChange={update} />}
-              {step === 5 && <StepRate data={data} onChange={update} />}
-              {step === 7 && <StepAvailability data={data} onChange={update} />}
-              {step === 8 && <StepReview data={data} submitting={submitting} onSubmit={handleSubmit} />}
-              {step === 9 && (
+              {step === 0  && <StepWelcome onNext={handleNext} />}
+              {step === 1  && <StepName data={data} onChange={update} />}
+              {step === 2  && <StepBio data={data} onChange={update} />}
+              {step === 3  && <StepPhoto data={data} onChange={update} />}
+              {step === 4  && <StepInterests data={data} onChange={update} />}
+              {step === 5  && <StepPrompt data={data} onChange={update} />}
+              {step === 6  && <StepServices data={data} onChange={update} />}
+              {step === 7  && <StepRate data={data} onChange={update} />}
+              {step === 9  && <StepAvailability data={data} onChange={update} />}
+              {step === 10 && <StepReview data={data} submitting={submitting} onSubmit={handleSubmit} />}
+              {step === 11 && <StepIdentity data={data} onChange={update} />}
+              {step === 12 && (
                 <StepPayout
                   onDone={() => navigate('/companion/dashboard', { replace: true })}
                   onSkip={() => navigate('/companion/dashboard', { replace: true })}
@@ -1279,7 +1607,7 @@ export function OnboardingWizard() {
                 Continue <IconArrowRight size={16} />
               </button>
 
-              {(step === 2 || step === 3 || step === 7) && (
+              {(step === 2 || step === 3 || step === 4 || step === 5 || step === 9 || step === 11) && (
                 <button onClick={handleNext}
                   className="w-full text-center text-sm text-muted mt-2.5 hover:text-body transition-colors py-1">
                   Skip for now
