@@ -9,6 +9,9 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { User } from '../users/user.entity';
+import { CompanionService } from './companion-service.entity';
+import { CompanionAvailability } from './companion-availability.entity';
+export { ServiceType } from './service-type.enum';
 
 export enum CompanionStatus {
   PENDING_VERIFICATION = 'pending_verification',
@@ -17,18 +20,7 @@ export enum CompanionStatus {
   REJECTED = 'rejected',
 }
 
-export enum ServiceType {
-  COFFEE = 'coffee',
-  DINING = 'dining',
-  CONCERT = 'concert',
-  TRAVEL = 'travel',
-  FITNESS = 'fitness',
-  CULTURE = 'culture',
-  NATURE = 'nature',
-  MOVIES = 'movies',
-  SHOPPING = 'shopping',
-  GAMING = 'gaming',
-}
+import { ServiceType } from './service-type.enum';
 
 @Entity('companion_profiles')
 export class CompanionProfile {
@@ -48,11 +40,11 @@ export class CompanionProfile {
   @Column({ nullable: true, length: 300 })
   bio: string;
 
-  @Column({ name: 'date_of_birth', type: 'date' })
-  dateOfBirth: Date;
+  @Column({ name: 'date_of_birth', type: 'date', nullable: true })
+  dateOfBirth: Date | null;
 
-  @Column({ name: 'profile_photo_url' })
-  profilePhotoUrl: string;
+  @Column({ name: 'profile_photo_url', type: 'varchar', nullable: true })
+  profilePhotoUrl: string | null;
 
   @Column({ name: 'hourly_rate_paisa', type: 'int' })
   hourlyRatePaisa: number;
@@ -93,11 +85,26 @@ export class CompanionProfile {
   @Column({ name: 'stripe_payouts_enabled', default: false })
   stripePayoutsEnabled: boolean;
 
+  @Column({ name: 'identity_verified_by_stripe', default: false })
+  identityVerifiedByStripe: boolean;
+
+  @Column({ name: 'identity_verified_by_veriff', default: false })
+  identityVerifiedByVeriff: boolean;
+
+  @Column({ name: 'identity_verified_by_admin', default: false })
+  identityVerifiedByAdmin: boolean;
+
   @Column({ name: 'rating_avg', type: 'decimal', precision: 3, scale: 1, nullable: true })
   ratingAvg: number;
 
   @Column({ name: 'rating_count', type: 'int', default: 0 })
   ratingCount: number;
+
+  @OneToMany(() => CompanionService, (s) => s.companion, { eager: false })
+  services: CompanionService[];
+
+  @OneToMany(() => CompanionAvailability, (a) => a.companion, { eager: false })
+  availability: CompanionAvailability[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

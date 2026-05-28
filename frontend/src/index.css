@@ -1,162 +1,101 @@
-@import 'maplibre-gl/dist/maplibre-gl.css';
-@import url('https://fonts.googleapis.com/css2?family=Caudex:ital,wght@0,400;0,700;1,400;1,700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600;1,700&display=swap');
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --color-primary-from: #00D4AA;
+  --color-primary-mid: #00C2D8;
+  --color-primary-to: #4F8CFF;
+
+  --color-heading: #0F172A;
+  --color-body: #1E293B;
+  --color-muted: #64748B;
+
+  --color-surface: #FFFFFF;
+  --color-surface-mint: #F7FBFA;
+  --color-surface-ice: #F6FAFF;
+  --color-surface-alt: #EEF9F7;
+
+  --color-border: #E8F1F0;
+  --color-accent-green: #00D4AA;
+  --color-accent-blue: #4F8CFF;
+  --color-soft-accent: #F0ECFF;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
 
 @layer base {
-  :root {
-    --color-amber:        #00D4AA;
-    --color-amber-light:  #E6FAF6;
-    --color-amber-dark:   #007A60;
-
-    --gradient-gold:      linear-gradient(135deg, #00D4AA 0%, #00C2D8 50%, #4F8CFF 100%);
-    --gradient-gold-h:    linear-gradient(90deg,  #00D4AA 0%, #4F8CFF 100%);
-    --gradient-gold-text: linear-gradient(135deg, #00D4AA 0%, #4F8CFF 100%);
-
-    --color-dark:         #0F172A;
-    --color-gray:         #64748B;
-    --color-gray-light:   #F1F5F9;
-    --color-border:       #E8F1F0;
-    --color-bg:           #F7FBFA;
-    --color-white:        #FFFFFF;
-
-    --color-success:      #0F6E56;
-    --color-success-bg:   #E1F5EE;
-    --color-error:        #A32D2D;
-    --color-error-bg:     #FCEBEB;
-
-    --space-xs:   4px;
-    --space-sm:   8px;
-    --space-md:   12px;
-    --space-lg:   16px;
-    --space-xl:   24px;
-    --space-2xl:  32px;
-    --space-3xl:  48px;
-
-    --radius-sm:   6px;
-    --radius-md:   8px;
-    --radius-lg:   12px;
-    --radius-xl:   16px;
-    --radius-full: 9999px;
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    @apply bg-surface-mint text-body font-sans antialiased;
   }
+}
 
-  html {
-    font-family: 'Nunito', system-ui, sans-serif;
-    background-color: var(--color-bg);
-    color: var(--color-dark);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, #00D4AA 0%, #00C2D8 50%, #4F8CFF 100%);
   }
-
-  h1, h2, h3, h4 {
-    font-family: 'Caudex', Georgia, serif;
-  }
-
-  * {
-    box-sizing: border-box;
-  }
-
-  :focus-visible {
-    outline: 2px solid var(--color-amber);
-    outline-offset: 2px;
-  }
-
-  /* Primary gradient text utility */
-  .text-gradient-primary {
-    background: var(--gradient-gold-text);
+  .gradient-primary-text {
+    background: linear-gradient(135deg, #00D4AA 0%, #4F8CFF 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-
-  /* Primary gradient button utility */
-  .btn-gradient-primary {
-    background: var(--gradient-gold);
-    color: white;
-    border: none;
-    position: relative;
-    overflow: hidden;
+  .btn-primary {
+    background: linear-gradient(135deg, #00D4AA 0%, #00C2D8 50%, #4F8CFF 100%);
+    @apply text-white font-semibold rounded-full px-6 py-3 transition-opacity hover:opacity-90 active:opacity-80 cursor-pointer border-0 outline-none;
   }
-  .btn-gradient-primary::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: rgba(255,255,255,0);
-    transition: background 0.15s;
+  .btn-ghost {
+    @apply border border-border bg-surface text-muted font-semibold rounded-full px-6 py-3 hover:bg-surface-alt transition-colors cursor-pointer;
   }
-  .btn-gradient-primary:hover::after {
-    background: rgba(255,255,255,0.08);
-  }
-  .btn-gradient-primary:active::after {
-    background: rgba(0,0,0,0.08);
+  .card {
+    @apply bg-surface rounded-2xl shadow-sm border border-border;
   }
 
-  /* ── Custom scrollbar ─────────────────────────────────────────── */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #00D4AA, #00A082);
-    border-radius: 99px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #00C29A, #008F72);
-  }
-  ::-webkit-scrollbar-corner {
-    background: transparent;
-  }
-  /* Firefox */
-  * {
+  .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: #00D4AA transparent;
+    scrollbar-color: #00D4AA22 transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 3px;
+    width: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #00D4AA, #4F8CFF);
+    border-radius: 999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #00C2D8, #4F8CFF);
   }
 
-  /* ── Marquee animation ────────────────────────────────────────── */
-  @keyframes marquee {
-    0%   { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  .marquee-track {
-    display: flex;
-    width: max-content;
-    animation: marquee 28s linear infinite;
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
-  .marquee-track:hover {
-    animation-play-state: paused;
-  }
-  .marquee-wrap {
-    overflow: hidden;
-    mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      black 8%,
-      black 92%,
-      transparent 100%
-    );
-    -webkit-mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      black 8%,
-      black 92%,
-      transparent 100%
-    );
-  }
+}
 
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
+/* Leaflet area tooltip override */
+.meytle-area-tip {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #1E293B !important;
+  white-space: nowrap !important;
+}
+.meytle-area-tip::before {
+  border-top-color: rgba(255, 255, 255, 0.95) !important;
+}
+/* Keep Leaflet controls above other elements */
+.leaflet-top, .leaflet-bottom {
+  z-index: 400;
 }

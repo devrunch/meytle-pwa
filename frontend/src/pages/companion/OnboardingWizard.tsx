@@ -1,748 +1,1294 @@
-import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  IconArrowLeft, IconArrowRight, IconCheck, IconPlus, IconMinus,
-  IconCamera, IconPhoto, IconId, IconMapPin, IconCoffee,
-  IconCalendarEvent, IconShieldCheck, IconUsers, IconHeart,
-  IconCurrencyRupee, IconAlertCircle,
-} from '@tabler/icons-react'
-import { ProgressBar, ScheduleGrid, Button } from '../../components/ui'
-import MapView from '../../components/ui/MapView'
-import type { ExperienceType } from '../../types'
-import { createEmptySchedule } from '../../components/ui'
-import type { ScheduleValue } from '../../components/ui/ScheduleGrid'
-import { api } from '../../lib/api'
+  IconArrowLeft, IconArrowRight, IconCamera, IconLoader2, IconCheck,
+  IconMapPin, IconCurrencyRupee, IconStar, IconX, IconUser,
+  IconFileText, IconLayoutGrid, IconRocket, IconCircleCheck,
+  IconCoffee, IconToolsKitchen2, IconMusic, IconPlane, IconRun,
+  IconPalette, IconLeaf, IconMovie, IconShoppingBag, IconDeviceGamepad,
+  IconClock, IconBrandStripe, IconWallet, IconChevronUp, IconChevronDown,
+} from '@tabler/icons-react';
+import { loadConnectAndInitialize } from '@stripe/connect-js';
+import { ConnectComponentsProvider, ConnectAccountOnboarding } from '@stripe/react-connect-js';
+import { MapContainer, TileLayer, Circle, CircleMarker, Tooltip, ZoomControl, useMap } from 'react-leaflet';
+import toast from 'react-hot-toast';
+import { client } from '../../api/client';
+import { useAuthStore } from '../../store/authStore';
+import type { ServiceType, ServiceArea, CompanionProfile } from '../../types';
 
-const TOTAL_STEPS = 7
+// ── Constants ──────────────────────────────────────────────────────────────────
 
-const STEP_META = [
-  { label: 'Services',     sub: 'What you offer',        icon: <IconCoffee size={16} stroke={1.5} /> },
-  { label: 'Rate',         sub: 'Your hourly price',     icon: <IconCurrencyRupee size={16} stroke={1.5} /> },
-  { label: 'About You',    sub: 'Interests & vibe',      icon: <IconHeart size={16} stroke={1.5} /> },
-  { label: 'Availability', sub: 'Your schedule',         icon: <IconCalendarEvent size={16} stroke={1.5} /> },
-  { label: 'Photos',       sub: 'Showcase yourself',     icon: <IconPhoto size={16} stroke={1.5} /> },
-  { label: 'Selfie',       sub: 'Verify your face',      icon: <IconCamera size={16} stroke={1.5} /> },
-  { label: 'Identity',     sub: 'Government ID',         icon: <IconId size={16} stroke={1.5} /> },
-]
+const SERVICES: {
+  value: ServiceType;
+  label: string;
+  icon: React.ElementType;
+  desc: string;
+}[] = [
+  { value: 'coffee',   label: 'Coffee',   icon: IconCoffee,         desc: 'Café hangouts & conversations' },
+  { value: 'dining',   label: 'Dining',   icon: IconToolsKitchen2,  desc: 'Restaurants & food experiences' },
+  { value: 'concert',  label: 'Concerts', icon: IconMusic,          desc: 'Live music & events' },
+  { value: 'travel',   label: 'Travel',   icon: IconPlane,          desc: 'Trips & adventures' },
+  { value: 'fitness',  label: 'Fitness',  icon: IconRun,            desc: 'Workouts & outdoor activities' },
+  { value: 'culture',  label: 'Culture',  icon: IconPalette,        desc: 'Museums, art & theatre' },
+  { value: 'nature',   label: 'Nature',   icon: IconLeaf,           desc: 'Parks, hikes & outdoors' },
+  { value: 'movies',   label: 'Movies',   icon: IconMovie,          desc: 'Cinema & streaming nights' },
+  { value: 'shopping', label: 'Shopping', icon: IconShoppingBag,    desc: 'Retail therapy partner' },
+  { value: 'gaming',   label: 'Gaming',   icon: IconDeviceGamepad,  desc: 'Gaming sessions & esports' },
+];
 
-const ALL_SERVICES: { type: ExperienceType; label: string; icon: string }[] = [
-  { type: 'coffee',   label: 'Coffee Dates',    icon: '☕' },
-  { type: 'dining',   label: 'Fine Dining',     icon: '🍽️' },
-  { type: 'concert',  label: 'Concerts',        icon: '🎵' },
-  { type: 'travel',   label: 'Travel',          icon: '✈️' },
-  { type: 'fitness',  label: 'Fitness',         icon: '🏃' },
-  { type: 'culture',  label: 'Cultural Events', icon: '🎭' },
-  { type: 'nature',   label: 'Nature Walks',    icon: '🌿' },
-  { type: 'movies',   label: 'Movies',          icon: '🎬' },
-]
+const RATE_PRESETS = [500, 800, 1000, 1500, 2000];
 
-const INTEREST_GROUPS = [
-  {
-    group: 'Activities',
-    items: [
-      { id: 'fitness',     label: 'Fitness',      emoji: '💪' },
-      { id: 'hiking',      label: 'Hiking',       emoji: '🏔️' },
-      { id: 'yoga',        label: 'Yoga',         emoji: '🧘' },
-      { id: 'cycling',     label: 'Cycling',      emoji: '🚴' },
-      { id: 'swimming',    label: 'Swimming',     emoji: '🏊' },
-    ],
-  },
-  {
-    group: 'Arts & Culture',
-    items: [
-      { id: 'movies',      label: 'Movies',       emoji: '🎬' },
-      { id: 'live_music',  label: 'Live Music',   emoji: '🎵' },
-      { id: 'theatre',     label: 'Theatre',      emoji: '🎭' },
-      { id: 'art',         label: 'Art',          emoji: '🎨' },
-      { id: 'photography', label: 'Photography',  emoji: '📷' },
-    ],
-  },
-  {
-    group: 'Food & Social',
-    items: [
-      { id: 'coffee',      label: 'Coffee',       emoji: '☕' },
-      { id: 'fine_dining', label: 'Fine Dining',  emoji: '🍽️' },
-      { id: 'cooking',     label: 'Cooking',      emoji: '👨‍🍳' },
-      { id: 'cocktails',   label: 'Cocktails',    emoji: '🍹' },
-      { id: 'brunch',      label: 'Brunch',       emoji: '🥞' },
-    ],
-  },
-  {
-    group: 'Lifestyle',
-    items: [
-      { id: 'travel',      label: 'Travel',       emoji: '✈️' },
-      { id: 'books',       label: 'Books',        emoji: '📚' },
-      { id: 'gaming',      label: 'Gaming',       emoji: '🎮' },
-      { id: 'fashion',     label: 'Fashion',      emoji: '👗' },
-      { id: 'wellness',    label: 'Wellness',     emoji: '🌿' },
-    ],
-  },
-]
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const PERSONALITY_TAGS = [
-  'Adventurous', 'Laid-back', 'Intellectual', 'Funny', 'Sporty',
-  'Artistic', 'Foodie', 'Night owl', 'Early bird', 'Social butterfly',
-  'Deep conversations', 'Spontaneous', 'Planner', 'Outdoorsy', 'Homebody',
-]
+// ── Time picker helpers ────────────────────────────────────────────────────────
 
-// ── Step 1: Services (no price, single rate later) ─────────────────────────
-function StepServices({
-  selected,
-  onChange,
-}: {
-  selected: ExperienceType[]
-  onChange: (s: ExperienceType[]) => void
-}) {
-  function toggle(type: ExperienceType) {
-    selected.includes(type)
-      ? onChange(selected.filter(t => t !== type))
-      : onChange([...selected, type])
-  }
+const DAY_START_MINS = 6 * 60;   // 6:00 AM — earliest fromTime
+const DAY_END_MINS   = 23 * 60;  // 11:00 PM — latest toTime
+const MIN_GAP_MINS   = 60;       // minimum 1-hour window
 
-  return (
-    <div>
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">What do you offer?</h2>
-      <p className="text-[13px] text-[var(--color-gray)] mb-6">Select all the experiences you'd like to provide.</p>
-
-      <div className="grid sm:grid-cols-2 gap-3">
-        {ALL_SERVICES.map(svc => {
-          const active = selected.includes(svc.type)
-          return (
-            <button
-              key={svc.type}
-              onClick={() => toggle(svc.type)}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-[14px] border-2 transition-all text-left ${
-                active
-                  ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)]'
-                  : 'border-[var(--color-border)] bg-white hover:border-[var(--color-amber)]/40'
-              }`}
-            >
-              <span className="text-[22px] leading-none">{svc.icon}</span>
-              <span className={`flex-1 text-[14px] font-medium ${active ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-dark)]'}`}>
-                {svc.label}
-              </span>
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                active ? 'bg-[var(--color-amber)] border-[var(--color-amber)]' : 'border-[var(--color-border)]'
-              }`}>
-                {active && <IconCheck size={11} stroke={2.5} color="white" />}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
+function toMins(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
 }
 
-// ── Step 2: Rate ─────────────────────────────────────────────────────────────
-function StepRate({ rate, onChange }: { rate: number; onChange: (r: number) => void }) {
-  const presets = [500, 800, 1000, 1200, 1500, 2000]
-  return (
-    <div className="max-w-[480px]">
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Set your hourly rate</h2>
-      <p className="text-[13px] text-[var(--color-gray)] mb-6">
-        This rate applies to all your services. You can change it anytime.
-      </p>
+function toTimeStr(totalMins: number): string {
+  const clamped = Math.max(DAY_START_MINS, Math.min(DAY_END_MINS, Math.round(totalMins / 30) * 30));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
 
-      {/* Big rate display + stepper */}
-      <div className="bg-white border border-[var(--color-border)] rounded-[16px] p-6 mb-5 flex flex-col items-center gap-4">
-        <p className="text-[12px] font-semibold text-[var(--color-gray)] uppercase tracking-wider">Your hourly rate</p>
-        <div className="flex items-center gap-5">
+function to12h(t: string) {
+  const m = toMins(t);
+  const h24 = Math.floor(m / 60);
+  const min = String(m % 60).padStart(2, '0');
+  const ampm: 'AM' | 'PM' = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+  return { h: h12, min, ampm };
+}
+
+function durLabel(from: string, to: string): string {
+  const diff = toMins(to) - toMins(from);
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+function TimeSpinner({
+  value, onChange, min, max, label,
+}: { value: string; onChange: (v: string) => void; min: number; max: number; label: string }) {
+  const cur = toMins(value);
+  const canUp   = cur + 30 <= max;
+  const canDown = cur - 30 >= min;
+  const { h, min: minStr, ampm } = to12h(value);
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[9px] font-bold text-muted uppercase tracking-widest">{label}</span>
+      <div className="flex items-center gap-1.5 bg-white border border-border rounded-xl px-2.5 py-1.5 shadow-sm select-none">
+        <div className="flex flex-col">
           <button
-            onClick={() => onChange(Math.max(100, rate - 100))}
-            className="w-10 h-10 rounded-full bg-[var(--color-gray-light)] border border-[var(--color-border)] flex items-center justify-center hover:border-[var(--color-amber)] transition-colors"
-          >
-            <IconMinus size={16} stroke={2} className="text-[var(--color-dark)]" />
+            onClick={() => canUp && onChange(toTimeStr(cur + 30))}
+            className={`w-4 h-3.5 flex items-center justify-center rounded transition-colors ${canUp ? 'text-muted hover:text-accent-green active:scale-95' : 'text-border cursor-default'}`}>
+            <IconChevronUp size={11} stroke={2.5} />
           </button>
-          <div className="text-center">
-            <p className="text-[42px] font-bold text-[var(--color-dark)] leading-none">₹{rate.toLocaleString()}</p>
-            <p className="text-[12px] text-[var(--color-gray)] mt-1">per hour</p>
-          </div>
           <button
-            onClick={() => onChange(rate + 100)}
-            className="w-10 h-10 rounded-full bg-[var(--color-gray-light)] border border-[var(--color-border)] flex items-center justify-center hover:border-[var(--color-amber)] transition-colors"
-          >
-            <IconPlus size={16} stroke={2} className="text-[var(--color-dark)]" />
+            onClick={() => canDown && onChange(toTimeStr(cur - 30))}
+            className={`w-4 h-3.5 flex items-center justify-center rounded transition-colors ${canDown ? 'text-muted hover:text-accent-green active:scale-95' : 'text-border cursor-default'}`}>
+            <IconChevronDown size={11} stroke={2.5} />
           </button>
         </div>
-      </div>
-
-      {/* Presets */}
-      <p className="text-[12px] text-[var(--color-gray)] mb-2.5">Quick select</p>
-      <div className="grid grid-cols-3 gap-2">
-        {presets.map(p => (
-          <button
-            key={p}
-            onClick={() => onChange(p)}
-            className={`py-2.5 rounded-[10px] text-[13px] font-semibold border-2 transition-all ${
-              rate === p
-                ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)] text-[var(--color-amber-dark)]'
-                : 'border-[var(--color-border)] bg-white text-[var(--color-dark)] hover:border-[var(--color-amber)]/40'
-            }`}
-          >
-            ₹{p.toLocaleString()}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 bg-[var(--color-amber-light)] rounded-[10px] px-3 py-2.5">
-        <p className="text-[11px] text-[var(--color-amber-dark)]">
-          💡 Companions earning ₹800–₹1,200/hr get the most bookings in your city.
-        </p>
+        <div className="leading-none text-center">
+          <span className="text-sm font-extrabold text-heading tabular-nums">{h}:{minStr}</span>
+          <span className={`text-[10px] font-bold ml-[2px] ${ampm === 'AM' ? 'text-blue-400' : 'text-amber-400'}`}>{ampm}</span>
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
-// ── Step 3: Interests / About You ─────────────────────────────────────────────
-function StepInterests({
-  displayName,
-  selected,
-  tags,
-  onDisplayName,
-  onSelected,
-  onTags,
-}: {
-  displayName: string
-  selected: string[]
-  tags: string[]
-  onDisplayName: (v: string) => void
-  onSelected: (s: string[]) => void
-  onTags: (t: string[]) => void
-}) {
-  function toggleInterest(id: string) {
-    selected.includes(id)
-      ? onSelected(selected.filter(i => i !== id))
-      : onSelected([...selected, id])
-  }
-  function toggleTag(t: string) {
-    tags.includes(t)
-      ? onTags(tags.filter(x => x !== t))
-      : onTags([...tags, t])
-  }
+function RangeBar({ fromTime, toTime }: { fromTime: string; toTime: string }) {
+  const span      = DAY_END_MINS - DAY_START_MINS;
+  const leftPct   = ((toMins(fromTime) - DAY_START_MINS) / span) * 100;
+  const widthPct  = ((toMins(toTime)   - toMins(fromTime)) / span) * 100;
+  const labels    = ['6AM', '9AM', '12PM', '3PM', '6PM', '9PM', '11PM'];
 
   return (
-    <div>
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">About you</h2>
-      <p className="text-[13px] text-[var(--color-gray)] mb-6">
-        Tell clients who you are. Pick your interests and personality traits too.
-      </p>
-
-      {/* Display name */}
-      <div className="mb-7 max-w-[320px]">
-        <label className="block text-[12px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-1.5">
-          Display name <span className="text-[var(--color-error)]">*</span>
-        </label>
-        <input
-          type="text"
-          value={displayName}
-          onChange={e => onDisplayName(e.target.value)}
-          placeholder="e.g. Aanya K."
-          maxLength={40}
-          className="w-full h-11 px-3 rounded-[10px] border border-[var(--color-border)] text-[13px] text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-amber)] transition-colors"
-        />
-        <p className="text-[11px] text-[var(--color-gray)] mt-1">Shown on your public profile</p>
+    <div className="mt-2 px-0.5">
+      <div className="relative h-2 bg-border/60 rounded-full overflow-hidden">
+        <div className="absolute h-full rounded-full"
+          style={{
+            left: `${leftPct}%`,
+            width: `${widthPct}%`,
+            background: 'linear-gradient(90deg,#00D4AA,#4F8CFF)',
+          }} />
       </div>
+      <div className="flex justify-between mt-1">
+        {labels.map((l) => (
+          <span key={l} className="text-[8px] text-muted/50 font-medium">{l}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      {/* Interest groups */}
-      <div className="flex flex-col gap-5 mb-6">
-        {INTEREST_GROUPS.map(group => (
-          <div key={group.group}>
-            <p className="text-[11px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-2.5">{group.group}</p>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {group.items.map(item => {
-                const active = selected.includes(item.id)
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => toggleInterest(item.id)}
-                    className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-[12px] border-2 transition-all ${
-                      active
-                        ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)]'
-                        : 'border-[var(--color-border)] bg-white hover:border-[var(--color-amber)]/40'
-                    }`}
-                  >
-                    <span className="text-[24px] leading-none">{item.emoji}</span>
-                    <span className={`text-[10px] font-semibold text-center leading-tight ${
-                      active ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-gray)]'
-                    }`}>{item.label}</span>
-                  </button>
-                )
-              })}
+const STEP_COPY = [
+  { headline: 'Turn your time\ninto earnings',      sub: 'Join companions earning ₹10K+ a month doing what they love.' },
+  { headline: 'Your name is your\nbrand',           sub: 'A great display name makes clients remember you.' },
+  { headline: 'Bios get 2×\nmore bookings',        sub: 'Clients connect with your story before they ever book.' },
+  { headline: 'Faces build\ntrust instantly',       sub: 'Profiles with photos receive 3× more booking requests.' },
+  { headline: 'Pick your\npassions',                sub: 'Clients search by experience type — be their perfect match.' },
+  { headline: 'You control\nthe terms',             sub: 'Fair, transparent pricing that works for your schedule.' },
+  { headline: 'Be discoverable\nlocally',           sub: 'Nearby clients book faster and leave better reviews.' },
+  { headline: 'Set your\nschedule',                 sub: 'Clients see when you\'re open — more bookings, fewer surprises.' },
+  { headline: 'Almost there —\nyou\'re ready',     sub: 'Review your profile before we send it for verification.' },
+  { headline: 'Get paid for\nevery session',        sub: 'Connect your bank account so we can send you money instantly.' },
+];
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type DaySlot = { enabled: boolean; fromTime: string; toTime: string };
+const DEFAULT_SLOT: DaySlot = { enabled: false, fromTime: '09:00', toTime: '21:00' };
+
+interface FormData {
+  displayName: string;
+  bio: string;
+  profilePhotoUrl: string;
+  services: ServiceType[];
+  hourlyRate: number;
+  areaLabel: string;
+  radiusKm: number;
+  coords: [number, number];
+  selectedAreaIds: string[];
+  slots: DaySlot[];
+}
+
+const INITIAL: FormData = {
+  displayName: '',
+  bio: '',
+  profilePhotoUrl: '',
+  services: [],
+  hourlyRate: 1000,
+  areaLabel: '',
+  radiusKm: 10,
+  coords: [77.1025, 28.7041],
+  selectedAreaIds: [],
+  slots: Array(7).fill(null).map(() => ({ ...DEFAULT_SLOT })),
+};
+
+// Steps: 0=welcome 1=name 2=bio 3=photo 4=services 5=rate 6=location 7=availability 8=review 9=payout
+const TOTAL_STEPS = 10;
+
+// ── Left panel: live preview ────────────────────────────────────────────────────
+
+function LivePreviewCard({ data }: { data: FormData }) {
+  const initial = data.displayName?.[0]?.toUpperCase() ?? '?';
+  return (
+    <div className="bg-white/10 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/20 shadow-2xl w-full max-w-[280px]">
+      <div className="relative h-40">
+        {data.profilePhotoUrl ? (
+          <img src={data.profilePhotoUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-white/10">
+            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl font-bold text-white">
+              {initial}
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Personality tags */}
-      <div>
-        <p className="text-[11px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-2.5">Your vibe</p>
-        <div className="flex flex-wrap gap-2">
-          {PERSONALITY_TAGS.map(t => {
-            const active = tags.includes(t)
-            return (
-              <button
-                key={t}
-                onClick={() => toggleTag(t)}
-                className={`px-3 py-1.5 rounded-full text-[12px] font-medium border transition-all ${
-                  active
-                    ? 'bg-[var(--color-amber)] border-[var(--color-amber)] text-white'
-                    : 'bg-white border-[var(--color-border)] text-[var(--color-gray)] hover:border-[var(--color-amber)]/50'
-                }`}
-              >
-                {t}
-              </button>
-            )
-          })}
-        </div>
-        {(selected.length > 0 || tags.length > 0) && (
-          <p className="text-[11px] text-[var(--color-amber)] mt-3">
-            {selected.length} interest{selected.length !== 1 ? 's' : ''} + {tags.length} personality tag{tags.length !== 1 ? 's' : ''} selected
-          </p>
         )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
+          <div>
+            <p className="text-white font-bold text-sm leading-tight">
+              {data.displayName || 'Your Name'}
+            </p>
+            <p className="text-white/70 text-[11px] mt-0.5">
+              {data.areaLabel || 'Your Area'}{data.areaLabel && data.radiusKm ? ` · ${data.radiusKm}km` : ''}
+            </p>
+          </div>
+          {data.hourlyRate >= 500 && (
+            <p className="text-white font-bold text-sm">
+              ₹{data.hourlyRate.toLocaleString('en-IN')}
+              <span className="text-white/60 text-[10px] font-normal">/hr</span>
+            </p>
+          )}
+        </div>
       </div>
-    </div>
-  )
-}
-
-// ── Step 4: Availability ─────────────────────────────────────────────────────
-function StepAvailability({ schedule, onChange }: { schedule: ScheduleValue; onChange: (s: ScheduleValue) => void }) {
-  return (
-    <div>
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">When are you available?</h2>
-      <p className="text-[13px] text-[var(--color-gray)] mb-6">Set the days and hours you're open for bookings.</p>
-      <ScheduleGrid value={schedule} onChange={onChange} />
-    </div>
-  )
-}
-
-// ── Step 5: Photos ────────────────────────────────────────────────────────────
-function StepPhotos({
-  photos,
-  uploading,
-  onRemove,
-  onFilesSelected,
-}: {
-  photos: string[]
-  uploading: boolean
-  onRemove: (i: number) => void
-  onFilesSelected: (files: FileList) => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  return (
-    <div>
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Add your photos</h2>
-      <p className="text-[13px] text-[var(--color-gray)] mb-6">Upload at least 3 photos. Clear, well-lit photos get more bookings.</p>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic"
-        multiple
-        className="hidden"
-        onChange={e => { if (e.target.files?.length) onFilesSelected(e.target.files); e.target.value = '' }}
-      />
-
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
-        {photos.map((url, i) => (
-          <div key={url} className="aspect-square rounded-[12px] overflow-hidden bg-[var(--color-gray-light)] relative group">
-            <img src={url} alt="" className="w-full h-full object-cover" />
-            {i === 0 && (
-              <div className="absolute bottom-1.5 left-1.5 bg-black/50 text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full">Main</div>
-            )}
-            <button
-              onClick={() => onRemove(i)}
-              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white text-[10px] font-bold hidden group-hover:flex items-center justify-center"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-
-        {uploading ? (
-          <div className="aspect-square rounded-[12px] border-2 border-dashed border-[var(--color-amber)] bg-[var(--color-amber-light)]/30 flex flex-col items-center justify-center gap-2">
-            <div className="w-5 h-5 border-2 border-[var(--color-amber)] border-t-transparent rounded-full animate-spin" />
-            <span className="text-[10px] text-[var(--color-amber)]">Uploading…</span>
-          </div>
+      <div className="p-3">
+        {data.bio ? (
+          <p className="text-white/80 text-[11px] leading-relaxed line-clamp-2">{data.bio}</p>
         ) : (
-          <button
-            onClick={() => inputRef.current?.click()}
-            className="aspect-square rounded-[12px] border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center gap-2 hover:border-[var(--color-amber)] hover:bg-[var(--color-amber-light)]/30 transition-all"
-          >
-            <IconPhoto size={22} stroke={1.2} className="text-[var(--color-gray)]" />
-            <span className="text-[10px] text-[var(--color-gray)]">Add photo</span>
-          </button>
+          <p className="text-white/30 text-[11px] italic">Your bio will appear here…</p>
+        )}
+        {data.services.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2.5">
+            {data.services.slice(0, 4).map((s) => {
+              const svc = SERVICES.find((x) => x.value === s);
+              return svc ? (
+                <span key={s} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white">
+                  {svc.label}
+                </span>
+              ) : null;
+            })}
+            {data.services.length > 4 && (
+              <span className="text-[10px] text-white/50">+{data.services.length - 4}</span>
+            )}
+          </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {photos.length < 3 ? (
-        <div className="flex items-center gap-2 bg-[var(--color-error-bg)] rounded-[10px] px-3 py-2.5">
-          <span className="text-[12px] text-[var(--color-error)]">Add at least {3 - photos.length} more photo{3 - photos.length > 1 ? 's' : ''} to continue.</span>
+function LeftPanel({ step, data }: { step: number; data: FormData }) {
+  const copy = STEP_COPY[step] ?? STEP_COPY[0];
+  return (
+    <div
+      className="hidden md:flex flex-col justify-between p-10 lg:p-14 flex-shrink-0 w-[400px] lg:w-[460px]"
+      style={{ background: 'linear-gradient(160deg,#00A896 0%,#00C2D8 40%,#4F8CFF 100%)' }}
+    >
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/20">
+          <IconStar size={16} className="text-white fill-white" />
         </div>
-      ) : (
-        <div className="flex items-center gap-2 bg-[var(--color-success-bg)] rounded-[10px] px-3 py-2.5">
-          <IconCheck size={13} stroke={2} className="text-[var(--color-success)]" />
-          <span className="text-[12px] text-[var(--color-success)] font-medium">Looking great! You can add more photos.</span>
+        <span className="text-white font-extrabold text-lg tracking-tight">meytle</span>
+      </div>
+
+      <div className="flex flex-col items-center gap-8">
+        <LivePreviewCard data={data} />
+        <div className="text-center">
+          <h2 className="text-white font-extrabold text-2xl lg:text-3xl leading-tight whitespace-pre-line">
+            {copy.headline}
+          </h2>
+          <p className="text-white/70 text-sm mt-2 leading-relaxed max-w-[220px] mx-auto">
+            {copy.sub}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        {[
+          { label: '100% verified', icon: IconCheck },
+          { label: 'Earn on your terms', icon: IconCurrencyRupee },
+        ].map(({ label, icon: Icon }) => (
+          <div key={label} className="flex items-center gap-1.5 text-white/60 text-xs">
+            <Icon size={12} className="text-white/50" />
+            {label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Step components ────────────────────────────────────────────────────────────
+
+function StepHeader({ icon: Icon, title, sub }: { icon: React.ElementType; title: string; sub: string }) {
+  return (
+    <div className="mb-6">
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+        style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+        <Icon size={20} className="text-white" />
+      </div>
+      <h2 className="text-xl font-extrabold text-heading mb-1.5">{title}</h2>
+      <p className="text-muted text-sm leading-relaxed">{sub}</p>
+    </div>
+  );
+}
+
+function StepWelcome({ onNext }: { onNext: () => void }) {
+  return (
+    <div className="flex flex-col h-full justify-between">
+      <div>
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
+          style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+          <IconRocket size={28} className="text-white" />
+        </div>
+        <h1 className="text-2xl font-extrabold text-heading mb-3 leading-tight">
+          Turn your time<br />into earnings
+        </h1>
+        <p className="text-muted text-sm leading-relaxed max-w-xs">
+          Join Meytle as a companion — meet interesting people, do what you love, and get paid for it.
+        </p>
+        <div className="grid grid-cols-3 gap-3 mt-8 max-w-sm">
+          {[
+            { icon: IconCurrencyRupee, label: 'Set your rate' },
+            { icon: IconStar, label: 'Your schedule' },
+            { icon: IconCircleCheck, label: 'Safe & verified' },
+          ].map(({ icon: Icon, label }) => (
+            <div key={label} className="bg-surface-alt rounded-xl py-4 px-2 text-center border border-border">
+              <Icon size={20} className="mx-auto mb-2 text-accent-green" />
+              <p className="text-[11px] font-semibold text-muted">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <button onClick={onNext}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-bold text-sm shadow-lg hover:opacity-90 transition-opacity active:scale-95 mt-8"
+        style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+        Let's get started <IconArrowRight size={16} />
+      </button>
+    </div>
+  );
+}
+
+function StepName({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  return (
+    <div>
+      <StepHeader
+        icon={IconUser}
+        title="What's your name?"
+        sub="This is what clients will see on your profile. Use your real name or a display name."
+      />
+      <input
+        value={data.displayName}
+        onChange={(e) => onChange({ displayName: e.target.value })}
+        placeholder="e.g. Aditya, Sarah K., Alex…"
+        maxLength={40}
+        autoFocus
+        className="w-full text-base font-semibold text-heading bg-surface-alt border-2 border-border rounded-xl px-4 py-3.5 outline-none placeholder:text-muted/40 focus:border-accent-green/60 focus:ring-4 focus:ring-accent-green/10 transition-all"
+      />
+      {data.displayName && (
+        <div className="mt-4 flex items-center gap-3 bg-surface-mint border border-border rounded-xl p-3.5">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold shrink-0 text-sm"
+            style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+            {data.displayName[0].toUpperCase()}
+          </div>
+          <div>
+            <p className="text-[11px] text-muted">Preview on your card</p>
+            <p className="text-sm font-semibold text-heading">{data.displayName}</p>
+          </div>
+          <IconStar size={13} className="ml-auto text-yellow-400 fill-yellow-400" />
         </div>
       )}
     </div>
-  )
+  );
 }
 
-// ── Step 6: Selfie ────────────────────────────────────────────────────────────
-function StepSelfie({ captured, onCapture }: { captured: boolean; onCapture: () => void }) {
+function StepBio({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
   return (
-    <div className="max-w-[400px]">
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Take a selfie</h2>
-      <p className="text-[13px] text-[var(--color-gray)] mb-6">We verify your profile photo is real. Make sure your face is clearly visible.</p>
-
-      <div className="aspect-square rounded-[24px] bg-[var(--color-gray-light)] border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center overflow-hidden mb-5">
-        {captured ? (
-          <div className="w-full h-full bg-[var(--color-amber-light)] flex flex-col items-center justify-center">
-            <div className="w-20 h-20 rounded-full bg-[var(--color-amber)] flex items-center justify-center mb-4 shadow-lg">
-              <IconCheck size={36} stroke={2} color="white" />
-            </div>
-            <p className="text-[16px] font-semibold text-[var(--color-amber-dark)]">Selfie captured!</p>
+    <div>
+      <StepHeader
+        icon={IconFileText}
+        title="Tell your story"
+        sub="A great bio helps clients connect with you before they book. Be authentic — share your personality!"
+      />
+      <textarea
+        value={data.bio}
+        onChange={(e) => onChange({ bio: e.target.value })}
+        placeholder="I love spontaneous plans, great food, and meaningful conversations. Whether it's exploring hidden cafés or hiking a trail, I'm always up for a good time…"
+        maxLength={300}
+        rows={5}
+        className="w-full text-sm text-body bg-surface-alt border-2 border-border rounded-xl px-4 py-3.5 outline-none placeholder:text-muted/40 focus:border-accent-green/60 focus:ring-4 focus:ring-accent-green/10 transition-all resize-none leading-relaxed"
+      />
+      <div className="flex justify-between mt-1.5">
+        <p className="text-[11px] text-muted">Clients love authenticity</p>
+        <p className={`text-[11px] font-medium ${data.bio.length > 260 ? 'text-amber-500' : 'text-muted'}`}>
+          {data.bio.length}/300
+        </p>
+      </div>
+      <div className="mt-5 space-y-2">
+        {['Mention 1-2 things you\'re passionate about', 'Describe your ideal hangout', 'Keep it warm and friendly'].map((tip) => (
+          <div key={tip} className="flex items-start gap-2 text-xs text-muted">
+            <IconCheck size={12} className="text-accent-green mt-0.5 shrink-0" />
+            {tip}
           </div>
-        ) : (
-          <>
-            <IconCamera size={48} stroke={1} className="text-[var(--color-gray)] mb-4" />
-            <p className="text-[13px] text-[var(--color-gray)] text-center px-8">Position your face in the frame</p>
-          </>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StepPhoto({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const { data: res } = await client.post<{ url: string }>('/uploads/photo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      onChange({ profilePhotoUrl: res.url });
+      toast.success('Photo uploaded!');
+    } catch {
+      toast.error('Upload failed, try again');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <div>
+      <StepHeader
+        icon={IconCamera}
+        title="Add your photo"
+        sub="Profiles with a photo get 3× more bookings. Make a great first impression!"
+      />
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <button onClick={() => fileRef.current?.click()} disabled={uploading} className="w-full group">
+        <div className={`mx-auto w-40 h-40 rounded-2xl overflow-hidden border-2 transition-all ${
+          data.profilePhotoUrl ? 'border-accent-green/50 shadow-lg' : 'border-dashed border-border hover:border-accent-green/40'
+        }`}
+          style={!data.profilePhotoUrl ? { background: 'linear-gradient(135deg,#00D4AA08,#4F8CFF08)' } : {}}>
+          {data.profilePhotoUrl ? (
+            <div className="relative w-full h-full">
+              <img src={data.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <p className="text-white text-xs font-semibold">Change photo</p>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2.5">
+              {uploading
+                ? <IconLoader2 size={28} className="text-accent-green animate-spin" />
+                : <IconCamera size={28} className="text-muted group-hover:text-accent-green transition-colors" />}
+              <p className="text-xs text-muted font-medium">{uploading ? 'Uploading…' : 'Click to upload'}</p>
+            </div>
+          )}
+        </div>
+      </button>
+      {data.profilePhotoUrl && (
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <IconCheck size={14} className="text-accent-green" />
+          <p className="text-sm text-accent-green font-semibold">Looking great!</p>
+          <button onClick={() => onChange({ profilePhotoUrl: '' })}
+            className="text-xs text-muted hover:text-red-500 transition-colors ml-2 flex items-center gap-1">
+            <IconX size={11} /> Remove
+          </button>
+        </div>
+      )}
+      <p className="text-center text-[11px] text-muted mt-3">JPG, PNG or WebP · max 8 MB</p>
+    </div>
+  );
+}
+
+function StepServices({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  const toggle = (v: ServiceType) => {
+    const curr = data.services;
+    onChange({ services: curr.includes(v) ? curr.filter((s) => s !== v) : [...curr, v] });
+  };
+  return (
+    <div>
+      <StepHeader
+        icon={IconLayoutGrid}
+        title="What do you enjoy?"
+        sub="Pick experiences you're happy to share. Select at least one."
+      />
+      <div className="grid grid-cols-2 gap-2">
+        {SERVICES.map(({ value, label, icon: Icon, desc }) => {
+          const active = data.services.includes(value);
+          return (
+            <button key={value} onClick={() => toggle(value)}
+              className={`relative flex items-center gap-2.5 p-3 rounded-xl border-2 text-left transition-all ${
+                active ? 'border-transparent shadow-md' : 'border-border bg-surface hover:border-accent-green/30'
+              }`}
+              style={active ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+              <Icon size={18} className={`shrink-0 ${active ? 'text-white' : 'text-muted'}`} />
+              <div className="min-w-0">
+                <p className={`text-sm font-bold truncate ${active ? 'text-white' : 'text-heading'}`}>{label}</p>
+                <p className={`text-[10px] truncate ${active ? 'text-white/70' : 'text-muted'}`}>{desc}</p>
+              </div>
+              {active && (
+                <div className="absolute top-2 right-2 w-3.5 h-3.5 rounded-full bg-white/30 flex items-center justify-center">
+                  <IconCheck size={9} className="text-white" />
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {data.services.length > 0 && (
+        <p className="text-center text-xs text-accent-green font-semibold mt-4">
+          {data.services.length} experience{data.services.length > 1 ? 's' : ''} selected
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  return (
+    <div>
+      <StepHeader
+        icon={IconCurrencyRupee}
+        title="Set your rate"
+        sub="You can change this anytime. Minimum ₹500/hour."
+      />
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center gap-1">
+          <span className="text-3xl font-bold text-muted">₹</span>
+          <input
+            type="number"
+            value={data.hourlyRate}
+            min={500}
+            max={10000}
+            onChange={(e) => onChange({ hourlyRate: Math.max(500, +e.target.value || 500) })}
+            className="text-5xl font-extrabold text-heading w-36 text-center bg-transparent outline-none border-b-2 border-border focus:border-accent-green/60 transition-colors [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <span className="text-xl text-muted self-end mb-2">/hr</span>
+        </div>
+      </div>
+      <div>
+        <p className="text-xs text-muted text-center mb-3 font-medium">Quick presets</p>
+        <div className="flex gap-2 justify-center flex-wrap">
+          {RATE_PRESETS.map((r) => (
+            <button key={r} onClick={() => onChange({ hourlyRate: r })}
+              className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+                data.hourlyRate === r ? 'text-white border-transparent' : 'border-border text-muted hover:border-accent-green/40'
+              }`}
+              style={data.hourlyRate === r ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+              ₹{r.toLocaleString('en-IN')}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-6 bg-surface-mint border border-border rounded-xl p-4 grid grid-cols-3 gap-3 text-center">
+        {[
+          { label: '5 sessions/mo', hrs: 5 },
+          { label: '10 sessions/mo', hrs: 10 },
+          { label: '20 sessions/mo', hrs: 20 },
+        ].map(({ label, hrs }) => (
+          <div key={label}>
+            <p className="text-sm font-bold text-heading">₹{(data.hourlyRate * hrs * 2).toLocaleString('en-IN')}</p>
+            <p className="text-[10px] text-muted mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted text-center mt-2">Estimated at 2 hrs avg per session</p>
+    </div>
+  );
+}
+
+// ── Map helpers ────────────────────────────────────────────────────────────────
+
+function MapCityFit({ areas, activeCity }: { areas: ServiceArea[]; activeCity: string }) {
+  const map = useMap();
+  const prev = useRef<string>('');
+  useEffect(() => {
+    if (activeCity === prev.current) return;
+    prev.current = activeCity;
+    const pts = areas.filter((a) => a.city === activeCity);
+    if (pts.length === 0) return;
+    if (pts.length === 1) {
+      map.setView([pts[0].lat, pts[0].lng], 12, { animate: true });
+    } else {
+      map.fitBounds(pts.map((a) => [a.lat, a.lng] as [number, number]), {
+        padding: [50, 50], maxZoom: 12, animate: true,
+      });
+    }
+  }, [activeCity, areas, map]);
+  return null;
+}
+
+function StepLocation({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  const [areas, setAreas]           = useState<ServiceArea[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [activeCity, setActiveCity] = useState('Delhi NCR');
+
+  useEffect(() => {
+    client.get<ServiceArea[]>('/service-areas')
+      .then((r) => { setAreas(r.data); if (r.data[0]) setActiveCity(r.data[0].city); })
+      .catch(() => toast.error('Could not load service areas'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const isSel = (id: string) => data.selectedAreaIds.includes(id);
+
+  const toggle = (area: ServiceArea) => {
+    const newIds = isSel(area.id)
+      ? data.selectedAreaIds.filter((id) => id !== area.id)
+      : [...data.selectedAreaIds, area.id];
+    const sel = areas.filter((a) => newIds.includes(a.id));
+    if (sel.length === 0) { onChange({ selectedAreaIds: [], areaLabel: '', coords: [77.1025, 28.7041] }); return; }
+    const avgLat = sel.reduce((s, a) => s + a.lat, 0) / sel.length;
+    const avgLng = sel.reduce((s, a) => s + a.lng, 0) / sel.length;
+    const radius = sel.length === 1 ? sel[0].defaultRadiusKm
+      : Math.round(sel.reduce((s, a) => s + a.defaultRadiusKm, 0) / sel.length);
+    onChange({
+      selectedAreaIds: newIds,
+      areaLabel:       sel.map((a) => a.name).join(', '),
+      coords:          [avgLng, avgLat],
+      radiusKm:        radius,
+    });
+  };
+
+  const cities    = [...new Set(areas.map((a) => a.city))];
+  const cityAreas = areas.filter((a) => a.city === activeCity);
+  const initCenter: [number, number] = (() => {
+    const f = areas.find((a) => a.city === activeCity);
+    return f ? [f.lat, f.lng] : [28.6, 77.2];
+  })();
+
+  return (
+    <>
+      <div className="px-5 md:px-8 pt-4 pb-2 flex-shrink-0">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+            <IconMapPin size={17} className="text-white" />
+          </div>
+          <div>
+            <h2 className="text-base font-extrabold text-heading">Your service area</h2>
+            <p className="text-[11px] text-muted">Pick a city · then select your zones</p>
+          </div>
+        </div>
+        {!loading && (
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            {cities.map((city) => {
+              const active   = activeCity === city;
+              const selCount = areas.filter((a) => a.city === city && isSel(a.id)).length;
+              return (
+                <button key={city} onClick={() => setActiveCity(city)}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95"
+                  style={active
+                    ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)', color: '#fff' }
+                    : selCount > 0
+                    ? { background: '#E0F7F4', color: '#00A896' }
+                    : { background: '#F1F5F9', color: '#4B5563' }}>
+                  {city}
+                  {selCount > 0 && (
+                    <span className={`text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${active ? 'bg-white/30 text-white' : 'bg-white text-accent-green'}`}>
+                      {selCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      <button onClick={onCapture} className="w-full h-12 rounded-[12px] bg-[var(--color-dark)] text-white text-[14px] font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity mb-3">
-        <IconCamera size={18} stroke={1.5} />
-        {captured ? 'Retake Selfie' : 'Open Camera'}
-      </button>
-      <p className="text-[11px] text-[var(--color-gray)] text-center">Selfie is only used for verification and never shown publicly.</p>
-    </div>
-  )
+      <div className="flex-1 relative min-h-0">
+        {loading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-alt">
+            <IconLoader2 size={28} className="animate-spin text-accent-green" />
+          </div>
+        ) : (
+          <MapContainer center={initCenter} zoom={11}
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={false} attributionControl={false}>
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" opacity={0.85} />
+            <ZoomControl position="bottomright" />
+            {areas.map((area) => {
+              const sel = isSel(area.id);
+              if (area.city !== activeCity && !sel) return null;
+              return (
+                <React.Fragment key={area.id}>
+                  <Circle
+                    center={[area.lat, area.lng]}
+                    radius={area.defaultRadiusKm * 1000}
+                    pathOptions={{
+                      color:       sel ? '#00D4AA' : '#94A3B8',
+                      fillColor:   sel ? '#00D4AA' : '#CBD5E1',
+                      fillOpacity: sel ? 0.25 : 0.06,
+                      weight:      sel ? 2.5 : 1,
+                      dashArray:   sel ? undefined : '5 5',
+                    }}
+                  />
+                  <CircleMarker
+                    center={[area.lat, area.lng]}
+                    radius={sel ? 8 : 5}
+                    pathOptions={{
+                      color:       sel ? '#007A63' : '#64748B',
+                      fillColor:   sel ? '#00D4AA' : '#94A3B8',
+                      fillOpacity: 1, weight: 2,
+                    }}
+                  >
+                    <Tooltip direction="top" offset={[0, -8]} opacity={0.96} className="meytle-area-tip">
+                      <span style={{ fontSize: 11, fontWeight: 600, color: sel ? '#00A896' : '#374151' }}>
+                        {sel ? '✓ ' : ''}{area.name}
+                      </span>
+                    </Tooltip>
+                  </CircleMarker>
+                </React.Fragment>
+              );
+            })}
+            <MapCityFit areas={areas} activeCity={activeCity} />
+          </MapContainer>
+        )}
+      </div>
+
+      <div className="px-5 md:px-8 py-3 border-t border-border bg-surface flex-shrink-0">
+        {!loading && (
+          <>
+            <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2.5">{activeCity}</p>
+            <div className="flex flex-wrap gap-2">
+              {cityAreas.map((area) => {
+                const sel = isSel(area.id);
+                return (
+                  <button key={area.id} onClick={() => toggle(area)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95"
+                    style={sel
+                      ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)', color: '#fff', borderColor: 'transparent' }
+                      : { background: '#FAFFFE', color: '#4B5563', borderColor: '#E2E8F0' }}>
+                    {sel && <IconCheck size={11} className="text-white shrink-0" />}
+                    {area.name}
+                  </button>
+                );
+              })}
+            </div>
+            {data.selectedAreaIds.length > 0 && (
+              <p className="text-[11px] text-muted mt-2.5">
+                <span className="text-accent-green font-semibold">{data.selectedAreaIds.length} zone{data.selectedAreaIds.length > 1 ? 's' : ''}</span> selected total
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
 }
 
-// ── Step 7: ID ─────────────────────────────────────────────────────────────────
-function StepID({ captured, onCapture }: { captured: boolean; onCapture: () => void }) {
-  return (
-    <div className="max-w-[480px]">
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Verify your identity</h2>
-      <p className="text-[13px] text-[var(--color-gray)] mb-6">Upload a government-issued ID (Aadhaar, PAN, Passport, or Driver's License).</p>
+// ── Step 7: Availability schedule ──────────────────────────────────────────────
 
-      <div className="flex flex-col gap-3 mb-5">
-        {['Front of ID', 'Back of ID'].map((side, i) => (
-          <button
-            key={side}
-            onClick={onCapture}
-            className={`w-full h-32 rounded-[14px] border-2 flex flex-col items-center justify-center gap-2 transition-all ${
-              captured && i === 0
-                ? 'border-[var(--color-success)] bg-[var(--color-success-bg)]'
-                : 'border-dashed border-[var(--color-border)] bg-[var(--color-gray-light)] hover:border-[var(--color-amber)] hover:bg-[var(--color-amber-light)]/30'
-            }`}
-          >
-            {captured && i === 0 ? (
-              <>
-                <div className="w-12 h-12 rounded-full bg-[var(--color-success)] flex items-center justify-center">
-                  <IconCheck size={22} stroke={2} color="white" />
-                </div>
-                <span className="text-[13px] font-medium text-[var(--color-success)]">Front captured</span>
-              </>
-            ) : (
-              <>
-                <IconId size={32} stroke={1.2} className="text-[var(--color-gray)]" />
-                <span className="text-[12px] text-[var(--color-gray)]">{side} — tap to capture or upload</span>
-              </>
-            )}
-          </button>
+function StepAvailability({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  const toggle = (i: number) => {
+    const next = data.slots.map((s, idx) => idx === i ? { ...s, enabled: !s.enabled } : s);
+    onChange({ slots: next });
+  };
+
+  const updateFrom = (i: number, val: string) => {
+    const fromMins = toMins(val);
+    const s = data.slots[i];
+    const adjustedTo = toMins(s.toTime) < fromMins + MIN_GAP_MINS
+      ? toTimeStr(Math.min(fromMins + MIN_GAP_MINS, DAY_END_MINS))
+      : s.toTime;
+    onChange({ slots: data.slots.map((slot, idx) => idx === i ? { ...slot, fromTime: val, toTime: adjustedTo } : slot) });
+  };
+
+  const updateTo = (i: number, val: string) => {
+    const toMinsVal = toMins(val);
+    const s = data.slots[i];
+    const adjustedFrom = toMinsVal < toMins(s.fromTime) + MIN_GAP_MINS
+      ? toTimeStr(Math.max(toMinsVal - MIN_GAP_MINS, DAY_START_MINS))
+      : s.fromTime;
+    onChange({ slots: data.slots.map((slot, idx) => idx === i ? { ...slot, toTime: val, fromTime: adjustedFrom } : slot) });
+  };
+
+  const enabledCount = data.slots.filter((s) => s.enabled).length;
+
+  return (
+    <div>
+      <StepHeader
+        icon={IconClock}
+        title="When are you available?"
+        sub="Toggle the days you're open. Clients will only see bookings within your hours."
+      />
+
+      <div className="rounded-2xl border border-border overflow-hidden divide-y divide-border/60">
+        {DAYS.map((day, i) => {
+          const s = data.slots[i];
+          return (
+            <div key={day} className={`px-4 py-3 transition-colors ${s.enabled ? 'bg-surface' : 'bg-surface-alt/50'}`}>
+              <div className="flex items-center gap-3">
+                <button onClick={() => toggle(i)} className="flex items-center gap-2.5 shrink-0 w-20">
+                  <div className={`w-10 h-[22px] rounded-full relative transition-colors shrink-0 ${s.enabled ? '' : 'bg-gray-200'}`}
+                    style={s.enabled ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+                    <div className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-transform ${s.enabled ? 'translate-x-5' : 'translate-x-[3px]'}`} />
+                  </div>
+                  <span className={`text-xs font-bold w-7 ${s.enabled ? 'text-heading' : 'text-muted'}`}>{day}</span>
+                </button>
+
+                {s.enabled ? (
+                  <div className="flex items-center gap-3 flex-1 justify-end">
+                    <TimeSpinner
+                      label="From"
+                      value={s.fromTime}
+                      min={DAY_START_MINS}
+                      max={DAY_END_MINS - MIN_GAP_MINS}
+                      onChange={(v) => updateFrom(i, v)}
+                    />
+                    <span className="text-xs text-muted font-medium shrink-0 mt-4">→</span>
+                    <TimeSpinner
+                      label="To"
+                      value={s.toTime}
+                      min={toMins(s.fromTime) + MIN_GAP_MINS}
+                      max={DAY_END_MINS}
+                      onChange={(v) => updateTo(i, v)}
+                    />
+                    <div className="flex flex-col items-center shrink-0 mt-4">
+                      <span className="text-[9px] font-bold text-muted uppercase tracking-widest">Dur</span>
+                      <span className="text-xs font-extrabold text-accent-green tabular-nums mt-0.5">
+                        {durLabel(s.fromTime, s.toTime)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted flex-1 italic">Tap to enable</span>
+                )}
+              </div>
+
+              {s.enabled && <RangeBar fromTime={s.fromTime} toTime={s.toTime} />}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between px-1">
+        <p className="text-xs text-muted">
+          {enabledCount > 0
+            ? <><span className="text-accent-green font-semibold">{enabledCount} day{enabledCount > 1 ? 's' : ''}</span> selected</>
+            : 'No days selected yet'}
+        </p>
+        <button
+          onClick={() => {
+            const allEnabled = data.slots.every((s) => s.enabled);
+            onChange({ slots: data.slots.map((s) => ({ ...s, enabled: !allEnabled })) });
+          }}
+          className="text-xs text-accent-green font-semibold hover:underline">
+          {data.slots.every((s) => s.enabled) ? 'Deselect all' : 'Select all'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 8: Review ─────────────────────────────────────────────────────────────
+
+function StepReview({
+  data, submitting, onSubmit,
+}: { data: FormData; submitting: boolean; onSubmit: () => void }) {
+  const photoInitial = data.displayName[0]?.toUpperCase() ?? '?';
+  const enabledDays = data.slots.map((s, i) => s.enabled ? DAYS[i] : null).filter(Boolean);
+
+  return (
+    <div>
+      <StepHeader
+        icon={IconCircleCheck}
+        title="You're all set!"
+        sub="Review your profile before going live. You can edit everything later."
+      />
+
+      <div className="bg-surface rounded-2xl border border-border overflow-hidden mb-5 shadow-md">
+        <div className="relative h-36 bg-surface-alt">
+          {data.profilePhotoUrl ? (
+            <img src={data.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white text-4xl font-bold"
+              style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+              {photoInitial}
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+          <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between">
+            <div>
+              <p className="text-white font-bold">{data.displayName}</p>
+              <p className="text-white/70 text-xs">{data.areaLabel || 'India'} · {data.radiusKm}km</p>
+            </div>
+            <p className="text-white font-bold">
+              ₹{data.hourlyRate.toLocaleString('en-IN')}
+              <span className="text-white/60 text-xs font-normal">/hr</span>
+            </p>
+          </div>
+        </div>
+        <div className="p-4">
+          <p className="text-sm text-muted line-clamp-2">{data.bio || 'No bio added'}</p>
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {data.services.map((s) => {
+              const svc = SERVICES.find((x) => x.value === s);
+              return svc ? (
+                <span key={s} className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full text-white"
+                  style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+                  {svc.label}
+                </span>
+              ) : null;
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2 mb-6">
+        {[
+          { icon: IconUser,        label: 'Display name', val: data.displayName },
+          { icon: IconMapPin,      label: 'Area',         val: `${data.areaLabel || 'Not set'} · ${data.radiusKm}km` },
+          { icon: IconCurrencyRupee, label: 'Hourly rate', val: `₹${data.hourlyRate.toLocaleString('en-IN')}/hr` },
+          { icon: IconLayoutGrid,  label: 'Services',     val: `${data.services.length} selected` },
+          { icon: IconClock,       label: 'Availability', val: enabledDays.length > 0 ? enabledDays.join(', ') : 'Not set' },
+        ].map(({ icon: Icon, label, val }) => (
+          <div key={label} className="flex items-center gap-3 px-3.5 py-2.5 bg-surface-alt rounded-xl">
+            <Icon size={15} className="text-muted shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] text-muted">{label}</p>
+              <p className="text-sm font-semibold text-heading truncate">{val}</p>
+            </div>
+            <IconCheck size={13} className="text-accent-green shrink-0" />
+          </div>
         ))}
       </div>
 
-      <div className="bg-[var(--color-amber-light)] rounded-[12px] px-4 py-3.5 flex gap-3">
-        <IconShieldCheck size={18} stroke={1.5} className="text-[var(--color-amber)] flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-[12px] font-semibold text-[var(--color-amber-dark)] mb-1">Why we need this</p>
-          <p className="text-[12px] text-[var(--color-amber)] leading-relaxed">
-            Your ID is encrypted and only reviewed by our safety team — it's never shared with other users.
-          </p>
-        </div>
-      </div>
+      <button onClick={onSubmit} disabled={submitting}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-bold text-sm shadow-lg hover:opacity-90 transition-opacity disabled:opacity-60 active:scale-95"
+        style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+        {submitting
+          ? <><IconLoader2 size={16} className="animate-spin" /> Submitting…</>
+          : <>Submit profile <IconArrowRight size={16} /></>}
+      </button>
+      <p className="text-[11px] text-muted text-center mt-4 leading-relaxed">
+        Your profile goes live after a quick verification.<br />We'll notify you within 24 hours.
+      </p>
     </div>
-  )
+  );
 }
 
-// ── Service area step ──────────────────────────────────────────────────────────
-function StepServiceArea() {
+// ── Step 9: Payout setup (embedded Stripe Connect) ────────────────────────────
+
+function StepPayout({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
+  const [stripeInstance, setStripeInstance] = useState<ReturnType<typeof loadConnectAndInitialize> | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [done, setDone]         = useState(false);
+
+  const initStripe = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      // First ensure the Stripe account exists
+      await client.post('/companions/me/stripe-onboard', {});
+
+      const instance = loadConnectAndInitialize({
+        publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string,
+        fetchClientSecret: async () => {
+          const { data } = await client.post<{ clientSecret: string }>('/companions/me/stripe-session');
+          return data.clientSecret;
+        },
+        appearance: {
+          overlays: 'dialog',
+          variables: {
+            colorPrimary: '#00D4AA',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            borderRadius: '12px',
+          },
+        },
+      });
+      setStripeInstance(instance);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Could not initialise Stripe. Check your keys.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  if (done) {
+    return (
+      <div className="flex flex-col items-center text-center py-6">
+        <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6 shadow-xl"
+          style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+          <IconCircleCheck size={40} className="text-white" />
+        </div>
+        <h2 className="text-2xl font-extrabold text-heading mb-2">Payout account set up!</h2>
+        <p className="text-sm text-muted max-w-xs mb-8">
+          Your earnings will be transferred to your bank after each completed session.
+        </p>
+        <div className="grid grid-cols-2 gap-3 w-full max-w-sm text-left mb-8">
+          {[
+            { icon: IconWallet,         text: 'Direct bank transfers' },
+            { icon: IconCheck,          text: 'Auto payouts after sessions' },
+            { icon: IconCurrencyRupee,  text: 'INR payouts supported' },
+            { icon: IconClock,          text: '2-7 business days' },
+          ].map(({ icon: Icon, text }) => (
+            <div key={text} className="flex items-center gap-2 text-xs text-body">
+              <Icon size={13} className="text-accent-green shrink-0" />{text}
+            </div>
+          ))}
+        </div>
+        <button onClick={onDone}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-bold text-sm shadow-lg hover:opacity-90 active:scale-95"
+          style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+          Go to your dashboard <IconArrowRight size={16} />
+        </button>
+      </div>
+    );
+  }
+
+  if (stripeInstance) {
+    return (
+      <div>
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: 'linear-gradient(135deg,#635BFF,#0570DE)' }}>
+            <IconBrandStripe size={20} className="text-white" />
+          </div>
+          <div>
+            <h2 className="text-base font-extrabold text-heading">Set up payouts</h2>
+            <p className="text-xs text-muted">Powered by Stripe — your data is encrypted</p>
+          </div>
+        </div>
+
+        <ConnectComponentsProvider connectInstance={stripeInstance}>
+          <ConnectAccountOnboarding onExit={() => { setDone(true); onDone(); }} />
+        </ConnectComponentsProvider>
+
+        <button onClick={onSkip}
+          className="w-full flex items-center justify-center gap-1.5 py-3 mt-4 rounded-xl text-sm font-semibold text-muted hover:text-body transition-colors">
+          Skip for now — I'll set up payouts later
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h2 className="text-[22px] font-semibold text-[var(--color-dark)] mb-1">Where do you operate?</h2>
-      <p className="text-[13px] text-[var(--color-gray)] mb-4">
-        Draw your service areas on the map. Use <strong>Draw</strong> for freeform or <strong>Circle</strong> for a radius.
+      <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
+        style={{ background: 'linear-gradient(135deg,#635BFF,#0570DE)' }}>
+        <IconBrandStripe size={28} className="text-white" />
+      </div>
+      <h2 className="text-xl font-extrabold text-heading mb-1.5">Set up your payout account</h2>
+      <p className="text-sm text-muted leading-relaxed mb-6">
+        Connect your bank account so we can send earnings directly to you after every session. Handled securely by Stripe — takes 2 minutes.
       </p>
-      <div className="rounded-[14px] overflow-hidden border border-[var(--color-border)]" style={{ height: 420 }}>
-        <MapView drawMode={true} height={420} className="w-full h-full" />
+
+      <div className="grid grid-cols-2 gap-3 mb-7">
+        {[
+          { icon: IconWallet,        text: 'Direct bank transfer' },
+          { icon: IconCheck,         text: 'Auto payouts after sessions' },
+          { icon: IconCurrencyRupee, text: 'INR payouts supported' },
+          { icon: IconClock,         text: '2-7 business days' },
+        ].map(({ icon: Icon, text }) => (
+          <div key={text} className="flex items-center gap-2 text-xs text-muted">
+            <Icon size={13} className="text-accent-green shrink-0" />{text}
+          </div>
+        ))}
       </div>
-      <div className="mt-3 flex items-center gap-2 bg-[var(--color-amber-light)] rounded-[10px] px-3 py-2.5">
-        <IconMapPin size={14} stroke={1.5} className="text-[var(--color-amber)] flex-none" />
-        <p className="text-[12px] text-[var(--color-amber-dark)]">You can add multiple areas and adjust them from your dashboard.</p>
-      </div>
+
+      {error && (
+        <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600">
+          {error}
+        </div>
+      )}
+
+      <button onClick={initStripe} disabled={loading}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-bold text-sm shadow-lg hover:opacity-90 disabled:opacity-60 active:scale-95 mb-3"
+        style={{ background: 'linear-gradient(135deg,#635BFF,#0570DE)' }}>
+        {loading
+          ? <><IconLoader2 size={16} className="animate-spin" /> Loading…</>
+          : <><IconBrandStripe size={16} /> Set up payouts with Stripe</>}
+      </button>
+
+      <button onClick={onSkip}
+        className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-semibold text-muted hover:text-body transition-colors">
+        Skip for now — I'll set up payouts later
+      </button>
+      <p className="text-[11px] text-muted text-center mt-3">
+        You won't be able to receive payments until this is set up.
+      </p>
     </div>
-  )
+  );
 }
 
-// ── Schedule conversion helpers ────────────────────────────────────────────
+// ── Main wizard ────────────────────────────────────────────────────────────────
 
-const DAY_TO_NUM: Record<string, number> = {
-  mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6,
-}
+export function OnboardingWizard() {
+  const navigate = useNavigate();
+  const { user, setAuth, token } = useAuthStore();
 
-function parseTimeToHHMM(t: string): string {
-  const [time, period] = t.split(' ')
-  const [h, m] = time.split(':').map(Number)
-  let hour = h
-  if (period === 'PM' && h !== 12) hour += 12
-  if (period === 'AM' && h === 12) hour = 0
-  return `${String(hour).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
+  const [step, setStep]           = useState(0);
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward');
+  const [animating, setAnimating] = useState(false);
+  const [data, setData]           = useState<FormData>({
+    ...INITIAL,
+    displayName: user?.fullName?.split(' ')[0] ?? '',
+  });
+  const [submitting, setSubmitting] = useState(false);
 
-function scheduleToSlots(schedule: ScheduleValue) {
-  return Array.from(schedule.days).map(day => ({
-    dayOfWeek: DAY_TO_NUM[day],
-    fromTime: parseTimeToHHMM(schedule.from),
-    toTime: parseTimeToHHMM(schedule.to),
-  }))
-}
-
-export default function OnboardingWizard() {
-  const navigate = useNavigate()
-  const [step, setStep] = useState(1)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-
-  const [services, setServices]           = useState<ExperienceType[]>([])
-  const [rate, setRate]                   = useState(1000)
-  const [displayName, setDisplayName]     = useState('')
-  const [interests, setInterests]         = useState<string[]>([])
-  const [personalityTags, setPersonality] = useState<string[]>([])
-  const [schedule, setSchedule]           = useState<ScheduleValue>(createEmptySchedule())
-  const [photos, setPhotos]               = useState<string[]>([])
-  const [photoUploading, setPhotoUploading] = useState(false)
-  const [selfieCaptured, setSelfieCaptured] = useState(false)
-  const [idCaptured, setIdCaptured]         = useState(false)
-
-  async function handlePhotoFiles(files: FileList) {
-    setPhotoUploading(true)
-    try {
-      for (const file of Array.from(files)) {
-        const form = new FormData()
-        form.append('file', file)
-        const res = await api.post<{ url: string }>('/uploads/photo', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
-        setPhotos(prev => [...prev, res.data.url])
-      }
-    } catch {
-      // individual upload failures are silent — the grid just won't grow
-    } finally {
-      setPhotoUploading(false)
-    }
-  }
-
-  function canProceed() {
-    if (step === 1) return services.length > 0
-    if (step === 3) return displayName.trim().length > 0
-    if (step === 5) return photos.length >= 3 && !photoUploading
-    return true
-  }
-
-  async function next() {
-    if (step < TOTAL_STEPS) {
-      setStep(s => s + 1)
-      return
-    }
-
-    // Final step — submit
-    setSubmitting(true)
-    setSubmitError(null)
-    try {
-      const bio = [...interests, ...personalityTags].join(', ')
-
-      await api.post('/companions/me', {
-        displayName: displayName.trim(),
-        bio: bio || undefined,
-        profilePhotoUrl: photos[0],
-        hourlyRatePaisa: rate * 100,
-        serviceAreaCentre: [77.209, 28.6139], // Delhi NCR default
-        serviceAreaRadiusKm: 25,
-        services,
+  // On mount: skip wizard if profile already exists
+  useEffect(() => {
+    client.get<CompanionProfile>('/companions/me/profile')
+      .then(({ data: profile }) => {
+        if (profile.stripePayoutsEnabled) {
+          navigate('/companion/dashboard', { replace: true });
+        } else {
+          setStep(9);
+        }
       })
+      .catch(() => { /* no profile yet — start from step 0 */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-      const slots = scheduleToSlots(schedule)
-      if (slots.length > 0) {
-        await api.put('/companions/me/availability', { slots })
+  const update = (patch: Partial<FormData>) => setData((prev) => ({ ...prev, ...patch }));
+
+  const canNext = (): boolean => {
+    if (step === 0) return true;
+    if (step === 1) return data.displayName.trim().length >= 1;
+    if (step === 2) return true;
+    if (step === 3) return true;
+    if (step === 4) return data.services.length >= 1;
+    if (step === 5) return data.hourlyRate >= 500;
+    if (step === 6) return data.selectedAreaIds.length >= 1;
+    if (step === 7) return true; // availability optional
+    return true;
+  };
+
+  const goTo = (next: number, dir: 'forward' | 'back') => {
+    if (animating) return;
+    setAnimating(true);
+    setDirection(dir);
+    setTimeout(() => { setStep(next); setAnimating(false); }, 200);
+  };
+
+  const handleNext = () => {
+    if (!canNext()) { toast.error('Please complete this step first'); return; }
+    if (step < TOTAL_STEPS - 1) goTo(step + 1, 'forward');
+  };
+
+  const handleBack = () => {
+    if (step > 0) goTo(step - 1, 'back');
+    else navigate(-1);
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      await client.post('/companions/me', {
+        displayName:         data.displayName.trim(),
+        bio:                 data.bio.trim() || undefined,
+        profilePhotoUrl:     data.profilePhotoUrl || undefined,
+        hourlyRatePaisa:     data.hourlyRate * 100,
+        serviceAreaCentre:   data.coords,
+        serviceAreaRadiusKm: data.radiusKm,
+        services:            data.services,
+      });
+
+      // Save availability slots (if any enabled)
+      const enabledSlots = data.slots
+        .map((s, i) => s.enabled ? { dayOfWeek: i, fromTime: s.fromTime, toTime: s.toTime } : null)
+        .filter(Boolean);
+      if (enabledSlots.length > 0) {
+        await client.put('/companions/me/availability', { slots: enabledSlots });
       }
 
-      navigate('/app/companion/dashboard')
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setSubmitError(typeof msg === 'string' ? msg : 'Submission failed. Please try again.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
+      // Refresh auth user so isCompanion() works
+      const me = await client.get('/users/me');
+      if (token) setAuth(token, me.data);
 
-  function back() {
-    if (step > 1) setStep(s => s - 1)
-    else navigate('/app')
-  }
+      toast.success('Profile created! Now set up your payouts.');
+      goTo(9, 'forward');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      if (typeof msg === 'string' && msg.includes('already exists')) {
+        toast('Profile already exists — set up your payouts.', { icon: 'ℹ️' });
+        goTo(9, 'forward');
+      } else {
+        toast.error('Submission failed, please try again');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isReview  = step === 8;
+  const isPayout  = step === 9;
+  const isFullBleed = step === 6;
+  const progress  = step === 0 ? 0 : Math.round((step / (TOTAL_STEPS - 1)) * 100);
 
   return (
-    <div className="min-h-full bg-[var(--color-bg)]">
+    <div className="h-screen flex overflow-hidden"
+      style={{ background: 'linear-gradient(160deg,#F7FBFA 0%,#F0F9FF 50%,#EFF6FF 100%)' }}>
 
-      {/* ── Top bar ── */}
-      <div className="sticky top-0 z-20 bg-white border-b border-[var(--color-border)] h-[52px] flex items-center px-5 gap-4">
-        <button onClick={back} className="flex items-center gap-1.5 text-[13px] text-[var(--color-gray)] hover:text-[var(--color-dark)] transition-colors">
-          <IconArrowLeft size={15} stroke={1.5} /> Back
-        </button>
-        <div className="flex-1 hidden md:block">
-          <ProgressBar value={(step / TOTAL_STEPS) * 100} />
-        </div>
-        <span className="text-[12px] text-[var(--color-gray)] hidden md:block">Step {step} of {TOTAL_STEPS}</span>
-        <button onClick={() => navigate('/app')} className="text-[12px] text-[var(--color-gray)] hover:text-[var(--color-dark)] transition-colors ml-auto md:ml-0">
-          Save & exit
-        </button>
-      </div>
+      <LeftPanel step={step} data={data} />
 
-      {/* ── Mobile progress ── */}
-      <div className="md:hidden bg-white border-b border-[var(--color-border)] px-4 pb-3 pt-2">
-        <ProgressBar value={(step / TOTAL_STEPS) * 100} />
-        <p className="text-[11px] text-[var(--color-gray)] mt-1.5">{STEP_META[step - 1].label} · Step {step} of {TOTAL_STEPS}</p>
-      </div>
+      <div className="flex-1 flex flex-col overflow-hidden">
 
-      {/* ── Body ── */}
-      <div className="flex">
+        {/* Top nav */}
+        <div className="flex items-center justify-between px-6 md:px-12 lg:px-16 pt-5 pb-3">
+          <button onClick={handleBack}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-muted hover:bg-black/[0.04] hover:text-body transition-colors">
+            {step === 0 ? <IconX size={18} /> : <IconArrowLeft size={18} />}
+          </button>
 
-        {/* ── Left sidebar ── */}
-        <aside className="hidden md:flex flex-col w-[260px] flex-shrink-0 bg-white border-r border-[var(--color-border)] py-8 px-5 sticky top-[52px] h-[calc(100vh-104px)] overflow-y-auto self-start">
-          <div className="mb-8 px-1">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-7 h-7 rounded-[8px] bg-[var(--color-amber)] flex items-center justify-center">
-                <IconUsers size={14} stroke={1.5} color="white" />
-              </div>
-              <span className="text-[13px] font-semibold text-[var(--color-dark)]">Become a Companion</span>
+          {step > 0 && (
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: TOTAL_STEPS - 1 }, (_, i) => (
+                <div key={i}
+                  className={`rounded-full transition-all duration-300 ${i + 1 === step ? 'w-5 h-2' : 'w-2 h-2'}`}
+                  style={{
+                    background: i + 1 <= step
+                      ? 'linear-gradient(135deg,#00D4AA,#4F8CFF)'
+                      : '#D1E8E4',
+                  }}
+                />
+              ))}
             </div>
-            <p className="text-[11px] text-[var(--color-gray)] pl-9">Complete all {TOTAL_STEPS} steps to go live</p>
-          </div>
+          )}
 
-          <div className="flex flex-col gap-1 relative">
-            <div className="absolute left-[15px] top-7 bottom-7 w-px bg-[var(--color-border)]" />
-            {STEP_META.map((s, i) => {
-              const n = i + 1
-              const done = n < step
-              const current = n === step
-              return (
-                <div key={s.label} className={`flex items-center gap-3 px-3 py-2.5 rounded-[10px] relative z-10 ${current ? 'bg-[var(--color-amber-light)]' : ''}`}>
-                  <div className={`w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
-                    done    ? 'bg-[var(--color-amber)] border-[var(--color-amber)]' :
-                    current ? 'bg-[var(--color-amber)] border-[var(--color-amber)] ring-4 ring-[var(--color-amber-light)]' :
-                              'bg-white border-[var(--color-border)]'
-                  }`}>
-                    {done
-                      ? <IconCheck size={13} stroke={2.5} color="white" />
-                      : <span className={`text-[11px] font-bold ${current ? 'text-white' : 'text-[var(--color-gray)]'}`}>{n}</span>
-                    }
-                  </div>
-                  <div>
-                    <p className={`text-[13px] font-medium leading-none ${current ? 'text-[var(--color-amber-dark)]' : done ? 'text-[var(--color-dark)]' : 'text-[var(--color-gray)]'}`}>{s.label}</p>
-                    <p className={`text-[10px] mt-0.5 ${current ? 'text-[var(--color-amber)]' : 'text-[var(--color-gray)]'}`}>{s.sub}</p>
-                  </div>
-                  {done && (
-                    <div className="ml-auto w-4 h-4 rounded-full bg-[var(--color-success-bg)] flex items-center justify-center">
-                      <IconCheck size={9} stroke={2.5} className="text-[var(--color-success)]" />
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="mt-auto pt-6 px-1">
-            <div className="flex items-start gap-2 bg-[var(--color-gray-light)] rounded-[10px] p-3">
-              <IconHeart size={14} stroke={1.5} className="text-[var(--color-amber)] mt-0.5 flex-shrink-0" />
-              <p className="text-[11px] text-[var(--color-gray)] leading-relaxed">
-                Verified companions earn <span className="font-semibold text-[var(--color-dark)]">3× more</span> than unverified profiles.
+          <div className="w-9">
+            {step > 0 && !isReview && !isPayout && (
+              <p className="text-[11px] text-muted font-medium text-right">
+                {step}/{TOTAL_STEPS - 2}
               </p>
-            </div>
-          </div>
-        </aside>
-
-        {/* ── Right: content ── */}
-        <main className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 px-5 md:px-10 py-8 pb-24">
-            <div className="max-w-[680px]">
-              {step === 1 && <StepServices selected={services} onChange={setServices} />}
-              {step === 2 && <StepRate rate={rate} onChange={setRate} />}
-              {step === 3 && (
-                <StepInterests
-                  displayName={displayName}
-                  selected={interests}
-                  tags={personalityTags}
-                  onDisplayName={setDisplayName}
-                  onSelected={setInterests}
-                  onTags={setPersonality}
-                />
-              )}
-              {step === 4 && <StepAvailability schedule={schedule} onChange={setSchedule} />}
-              {step === 4 && false && <StepServiceArea />}
-              {step === 5 && (
-                <StepPhotos
-                  photos={photos}
-                  uploading={photoUploading}
-                  onRemove={i => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
-                  onFilesSelected={handlePhotoFiles}
-                />
-              )}
-              {step === 6 && <StepSelfie captured={selfieCaptured} onCapture={() => setSelfieCaptured(true)} />}
-              {step === 7 && <StepID captured={idCaptured} onCapture={() => setIdCaptured(true)} />}
-            </div>
-          </div>
-
-          {/* ── Bottom CTA ── */}
-          <div className="sticky bottom-0 bg-white border-t border-[var(--color-border)] px-5 md:px-10 py-4 flex flex-col gap-2">
-            {submitError && (
-              <div className="flex items-center gap-2 bg-[var(--color-error-bg)] rounded-[10px] px-3 py-2">
-                <IconAlertCircle size={14} stroke={1.5} className="text-[var(--color-error)] flex-none" />
-                <p className="text-[12px] text-[var(--color-error)]">{submitError}</p>
-              </div>
             )}
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                {step === 1 && services.length === 0 && (
-                  <p className="text-[12px] text-[var(--color-gray)]">Select at least one service</p>
-                )}
-                {step === 3 && !displayName.trim() && (
-                  <p className="text-[12px] text-[var(--color-gray)]">Display name is required</p>
-                )}
-                {step === 5 && photoUploading && (
-                  <p className="text-[12px] text-[var(--color-gray)]">Uploading…</p>
-                )}
-                {step === 5 && !photoUploading && photos.length < 3 && (
-                  <p className="text-[12px] text-[var(--color-gray)]">Need {3 - photos.length} more photo{3 - photos.length > 1 ? 's' : ''}</p>
-                )}
-              </div>
-              <Button size="lg" onClick={next} disabled={!canProceed() || submitting} className="min-w-[160px]">
-                <span className="flex items-center justify-center gap-2">
-                  {submitting
-                    ? 'Submitting…'
-                    : step === TOTAL_STEPS
-                      ? <><IconCheck size={16} stroke={2} /> Submit Application</>
-                      : <>Continue <IconArrowRight size={16} stroke={2} /></>
-                  }
-                </span>
-              </Button>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        {step > 0 && (
+          <div className="mx-6 md:mx-12 lg:mx-16 h-0.5 bg-border rounded-full">
+            <div className="h-full transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${progress}%`, background: 'linear-gradient(90deg,#00D4AA,#4F8CFF)' }} />
+          </div>
+        )}
+
+        {/* Step content */}
+        {isFullBleed ? (
+          <div className="flex-1 flex flex-col min-h-0"
+            style={{ opacity: animating ? 0 : 1, transition: 'opacity 0.18s ease' }}>
+            <StepLocation data={data} onChange={update} />
+          </div>
+        ) : (
+          <div className="flex-1 px-6 md:px-12 lg:px-16 py-6 overflow-y-auto"
+            style={{
+              opacity: animating ? 0 : 1,
+              transform: animating ? `translateX(${direction === 'forward' ? 20 : -20}px)` : 'translateX(0)',
+              transition: 'opacity 0.18s ease, transform 0.18s ease',
+            }}>
+            <div className="max-w-xl">
+              {step === 0 && <StepWelcome onNext={handleNext} />}
+              {step === 1 && <StepName data={data} onChange={update} />}
+              {step === 2 && <StepBio data={data} onChange={update} />}
+              {step === 3 && <StepPhoto data={data} onChange={update} />}
+              {step === 4 && <StepServices data={data} onChange={update} />}
+              {step === 5 && <StepRate data={data} onChange={update} />}
+              {step === 7 && <StepAvailability data={data} onChange={update} />}
+              {step === 8 && <StepReview data={data} submitting={submitting} onSubmit={handleSubmit} />}
+              {step === 9 && (
+                <StepPayout
+                  onDone={() => navigate('/companion/dashboard', { replace: true })}
+                  onSkip={() => navigate('/companion/dashboard', { replace: true })}
+                />
+              )}
             </div>
           </div>
-        </main>
+        )}
+
+        {/* Bottom nav — only for non-review, non-payout, non-welcome steps */}
+        {step > 0 && !isReview && !isPayout && (
+          <div className="px-6 md:px-12 lg:px-16 pb-6 pt-3">
+            <div className="max-w-xl">
+              <button onClick={handleNext} disabled={!canNext()}
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm transition-all ${
+                  canNext()
+                    ? 'text-white shadow-md hover:opacity-90 active:scale-95'
+                    : 'bg-surface-alt text-muted cursor-not-allowed'
+                }`}
+                style={canNext() ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+                Continue <IconArrowRight size={16} />
+              </button>
+
+              {(step === 2 || step === 3 || step === 7) && (
+                <button onClick={handleNext}
+                  className="w-full text-center text-sm text-muted mt-2.5 hover:text-body transition-colors py-1">
+                  Skip for now
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { IconMapPin, IconCheck, IconStar } from '@tabler/icons-react'
 import { cn } from '../../lib/cn'
 import type { Companion } from '../../types'
@@ -9,14 +10,15 @@ interface CompanionCardProps {
 }
 
 export default function CompanionCard({ companion, onClick, className }: CompanionCardProps) {
+  const [imgError, setImgError] = useState(false)
   return (
     <article
       className={cn(
         'group flex flex-col bg-white rounded-[16px] overflow-hidden cursor-pointer',
         'transition-all duration-200',
         'hover:-translate-y-1 hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)]',
-        'shadow-[0_0_0_1px_#E8E4DC]',
-        'hover:shadow-[0_0_0_1.5px_var(--color-amber),0_8px_32px_rgba(201,146,10,0.15)]',
+        'shadow-[0_0_0_1px_var(--color-border)]',
+        'hover:shadow-[0_0_0_1.5px_var(--color-amber),0_8px_32px_rgba(0,212,170,0.15)]',
         className,
       )}
       onClick={onClick}
@@ -27,15 +29,16 @@ export default function CompanionCard({ companion, onClick, className }: Compani
     >
       {/* ── Photo — fixed height ───────────────────────────────────── */}
       <div className="relative h-[200px] flex-shrink-0 bg-[var(--color-gray-light)] overflow-hidden">
-        {companion.avatarUrl ? (
+        {companion.avatarUrl && !imgError ? (
           <img
             src={companion.avatarUrl}
             alt={companion.name}
             className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+            onError={() => setImgError(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-[var(--color-amber-light)]">
-            <span className="text-[48px] font-bold text-[var(--color-amber)]">{companion.initials}</span>
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[var(--color-amber)] to-[#4F8CFF]">
+            <span className="text-[48px] font-bold text-white">{companion.initials}</span>
           </div>
         )}
 

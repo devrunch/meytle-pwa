@@ -1,239 +1,514 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  IconEdit, IconStar, IconCalendarEvent, IconHeart, IconShield,
-  IconBell, IconCreditCard, IconHelp, IconLogout, IconChevronRight,
-  IconUsers, IconMapPin, IconCamera, IconLayoutDashboard,
-} from '@tabler/icons-react'
-import { useAuthStore } from '../../store/auth'
-import { useCompanionStore } from '../../store/companion'
-import { api } from '../../lib/api'
+  IconCamera, IconLoader2, IconCheck, IconUser,
+  IconMail, IconShield, IconChevronRight, IconUserStar,
+  IconLayoutDashboard, IconEdit, IconTrash, IconPlus,
+  IconHeart, IconPhoto, IconInfoCircle,
+} from '@tabler/icons-react';
+import toast from 'react-hot-toast';
+import { client } from '../../api/client';
+import { useAuthStore } from '../../store/authStore';
+import { DatePicker } from '../../components/ui/DatePicker';
 
-interface SettingRow {
-  icon: React.ReactNode
-  label: string
-  value?: string
-  danger?: boolean
-  onClick: () => void
-}
+// ── Interest options ───────────────────────────────────────────────────────────
 
-function SettingsSection({ title, rows }: { title: string; rows: SettingRow[] }) {
+const INTERESTS = [
+  { id: 'travel',     label: 'Travel',     emoji: '✈️' },
+  { id: 'coffee',     label: 'Coffee',     emoji: '☕' },
+  { id: 'dining',     label: 'Dining',     emoji: '🍽️' },
+  { id: 'music',      label: 'Music',      emoji: '🎵' },
+  { id: 'movies',     label: 'Movies',     emoji: '🎬' },
+  { id: 'fitness',    label: 'Fitness',    emoji: '🏃' },
+  { id: 'gaming',     label: 'Gaming',     emoji: '🎮' },
+  { id: 'art',        label: 'Art',        emoji: '🎨' },
+  { id: 'books',      label: 'Books',      emoji: '📚' },
+  { id: 'nature',     label: 'Nature',     emoji: '🌿' },
+  { id: 'shopping',   label: 'Shopping',   emoji: '🛍️' },
+  { id: 'culture',    label: 'Culture',    emoji: '🎭' },
+  { id: 'cooking',    label: 'Cooking',    emoji: '🍳' },
+  { id: 'photography',label: 'Photography',emoji: '📷' },
+  { id: 'yoga',       label: 'Yoga',       emoji: '🧘' },
+  { id: 'dancing',    label: 'Dancing',    emoji: '💃' },
+  { id: 'sports',     label: 'Sports',     emoji: '⚽' },
+  { id: 'tech',       label: 'Tech',       emoji: '💻' },
+  { id: 'fashion',    label: 'Fashion',    emoji: '👗' },
+  { id: 'pets',       label: 'Pets',       emoji: '🐾' },
+];
+
+type Tab = 'info' | 'about' | 'photos';
+
+// ── Left identity column (shared across tabs) ─────────────────────────────────
+
+function IdentityCard({
+  fullName, avatarUrl, uploading, user, isCompanion, fileRef, onClickAvatar,
+}: {
+  fullName: string; avatarUrl: string; uploading: boolean;
+  user: ReturnType<typeof useAuthStore>['user'];
+  isCompanion: boolean;
+  fileRef: React.RefObject<HTMLInputElement | null>;
+  onClickAvatar: () => void;
+}) {
+  const initial = fullName.trim()[0]?.toUpperCase() ?? '?';
+  const formattedDob = user?.dateOfBirth
+    ? new Date(user.dateOfBirth + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null;
+
   return (
-    <div>
-      <p className="text-[11px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-2">{title}</p>
-      <div className="bg-white border border-[var(--color-border)] rounded-[14px] overflow-hidden">
-        {rows.map((row, i) => (
-          <button
-            key={i}
-            onClick={row.onClick}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--color-gray-light)] transition-colors ${
-              i < rows.length - 1 ? 'border-b border-[var(--color-border)]' : ''
-            }`}
-          >
-            <div className={`w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0 ${
-              row.danger ? 'bg-[var(--color-error-bg)]' : 'bg-[var(--color-gray-light)]'
-            }`}>
-              <span className={row.danger ? 'text-[var(--color-error)]' : 'text-[var(--color-dark)]'}>{row.icon}</span>
+    <div className="flex flex-col gap-4">
+      <div className="bg-surface rounded-2xl border border-border overflow-hidden">
+        {/* Banner */}
+        <div className="h-20 relative" style={{ background: 'linear-gradient(135deg,#00D4AA,#00C2D8 50%,#4F8CFF)' }}>
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 70% 50%,white,transparent 60%)' }} />
+        </div>
+
+        <div className="px-5 pb-5">
+          {/* Avatar */}
+          <div className="relative -mt-10 mb-3 w-fit">
+            <div className="relative group cursor-pointer" onClick={onClickAvatar}>
+              <div className="w-20 h-20 rounded-2xl overflow-hidden ring-4 ring-surface shadow-lg">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={fullName} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold"
+                    style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+                    {initial}
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+                  {uploading ? <IconLoader2 size={18} className="text-white animate-spin" /> : <IconCamera size={18} className="text-white" />}
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-surface flex items-center justify-center text-white shadow"
+                style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+                {uploading ? <IconLoader2 size={10} className="animate-spin" /> : <IconEdit size={10} />}
+              </div>
             </div>
-            <div className="flex-1">
-              <p className={`text-[13px] font-medium ${row.danger ? 'text-[var(--color-error)]' : 'text-[var(--color-dark)]'}`}>
-                {row.label}
-              </p>
-              {row.value && <p className="text-[11px] text-[var(--color-gray)] mt-0.5">{row.value}</p>}
+          </div>
+
+          <p className="font-bold text-heading">{fullName || 'Your Name'}</p>
+          <p className="text-xs text-muted mt-0.5">{user?.email}</p>
+          {formattedDob && <p className="text-xs text-muted mt-1">🎂 {formattedDob}</p>}
+          {user?.bio && <p className="text-xs text-muted mt-2 line-clamp-2 italic">"{user.bio}"</p>}
+
+          <div className="flex gap-1.5 flex-wrap mt-3">
+            {user?.roles.map((r) => (
+              <span key={r} className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
+                style={r === 'companion'
+                  ? { background: 'linear-gradient(135deg,#00D4AA18,#4F8CFF18)', color: '#00C2D8', border: '1px solid #00D4AA30' }
+                  : { background: '#F7FBFA', color: '#64748B', border: '1px solid #E8F1F0' }}>
+                {r}
+              </span>
+            ))}
+          </div>
+
+          {user?.interests && user.interests.length > 0 && (
+            <div className="flex gap-1 flex-wrap mt-3">
+              {user.interests.slice(0, 5).map((id) => {
+                const opt = INTERESTS.find(i => i.id === id);
+                return opt ? (
+                  <span key={id} className="text-[10px] bg-surface-alt text-muted px-2 py-0.5 rounded-full">
+                    {opt.emoji} {opt.label}
+                  </span>
+                ) : null;
+              })}
             </div>
-            <IconChevronRight size={14} stroke={1.5} className="text-[var(--color-gray)]" />
-          </button>
-        ))}
+          )}
+        </div>
       </div>
+
+      {/* Companion CTA */}
+      {isCompanion ? (
+        <Link to="/companion/profile"
+          className="flex items-center justify-between px-4 py-3.5 bg-surface rounded-2xl border border-border hover:border-accent-green/50 hover:shadow-md transition-all group">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#00D4AA18,#4F8CFF18)' }}>
+              <IconLayoutDashboard size={17} className="text-accent-green" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-heading">Companion Profile</p>
+              <p className="text-xs text-muted">Edit rates, bio & services</p>
+            </div>
+          </div>
+          <IconChevronRight size={15} className="text-muted group-hover:text-accent-green transition-colors" />
+        </Link>
+      ) : (
+        <Link to="/become-companion"
+          className="flex items-center justify-between px-4 py-3.5 rounded-2xl border border-dashed border-accent-green/30 hover:shadow-md transition-all group"
+          style={{ background: 'linear-gradient(135deg,#00D4AA06,#4F8CFF06)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+              <IconUserStar size={17} className="text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-heading">Become a Companion</p>
+              <p className="text-xs text-muted">Start earning on Meytle</p>
+            </div>
+          </div>
+          <IconChevronRight size={15} className="text-muted group-hover:text-accent-green transition-colors" />
+        </Link>
+      )}
     </div>
-  )
+  );
 }
 
-export default function ProfilePage() {
-  const navigate = useNavigate()
-  const user = useAuthStore(s => s.user)
-  const logout = useAuthStore(s => s.logout)
-  const companionProfileId = useCompanionStore(s => s.profileId)
-  const [bookingCount, setBookingCount] = useState<number | null>(null)
-  const [completedCount, setCompletedCount] = useState<number>(0)
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+export function ProfilePage() {
+  const { user, setAuth } = useAuthStore();
+  const isCompanion = useAuthStore((s) => s.isCompanion)();
+  const token = useAuthStore((s) => s.token);
+
+  const [tab, setTab] = useState<Tab>('info');
+
+  // Info tab state
+  const [fullName,  setFullName]  = useState(user?.fullName    ?? '');
+  const [dob,       setDob]       = useState(user?.dateOfBirth ?? '');
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl   ?? '');
+
+  // About tab state
+  const [bio,       setBio]       = useState(user?.bio         ?? '');
+  const [interests, setInterests] = useState<string[]>(user?.interests ?? []);
+
+  // Photos tab state
+  const [photos, setPhotos] = useState<string[]>(user?.photos ?? []);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const [saving,    setSaving]    = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [saved,     setSaved]     = useState(false);
+
+  const avatarRef = useRef<HTMLInputElement>(null);
+  const photoRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api.get<Array<{ status: string }>>('/bookings')
-      .then(res => {
-        setBookingCount(res.data.length)
-        setCompletedCount(res.data.filter(b => b.status === 'completed').length)
-      })
-      .catch(() => setBookingCount(0))
-  }, [])
+    setFullName(user?.fullName    ?? '');
+    setDob(user?.dateOfBirth      ?? '');
+    setAvatarUrl(user?.avatarUrl  ?? '');
+    setBio(user?.bio              ?? '');
+    setInterests(user?.interests  ?? []);
+    setPhotos(user?.photos        ?? []);
+  }, [user]);
 
-  const initials = user?.fullName?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) ?? '?'
+  // ── Avatar upload ────────────────────────────────────────────────────────────
 
-  function handleLogout() {
-    logout()
-    navigate('/login')
-  }
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const { data } = await client.post<{ url: string }>('/uploads/photo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAvatarUrl(data.url);
+      const updated = await client.patch('/users/me', { avatarUrl: data.url });
+      if (token && user) setAuth(token, updated.data);
+      toast.success('Photo updated');
+    } catch {
+      toast.error('Upload failed');
+    } finally {
+      setUploading(false);
+      if (avatarRef.current) avatarRef.current.value = '';
+    }
+  };
+
+  // ── Gallery photo upload ─────────────────────────────────────────────────────
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    if (photos.length + files.length > 9) { toast.error('Max 9 photos allowed'); return; }
+    setUploadingPhoto(true);
+    try {
+      const urls: string[] = [];
+      for (const file of files) {
+        const form = new FormData();
+        form.append('file', file);
+        const { data } = await client.post<{ url: string }>('/uploads/photo', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        urls.push(data.url);
+      }
+      const next = [...photos, ...urls];
+      setPhotos(next);
+      const updated = await client.patch('/users/me', { photos: next });
+      if (token) setAuth(token, updated.data);
+      toast.success(`${urls.length} photo${urls.length > 1 ? 's' : ''} added`);
+    } catch {
+      toast.error('Upload failed');
+    } finally {
+      setUploadingPhoto(false);
+      if (photoRef.current) photoRef.current.value = '';
+    }
+  };
+
+  const removePhoto = async (url: string) => {
+    const next = photos.filter(p => p !== url);
+    setPhotos(next);
+    try {
+      const updated = await client.patch('/users/me', { photos: next });
+      if (token) setAuth(token, updated.data);
+      toast.success('Photo removed');
+    } catch {
+      toast.error('Failed to remove');
+      setPhotos(photos); // revert
+    }
+  };
+
+  // ── Toggle interest ──────────────────────────────────────────────────────────
+
+  const toggleInterest = (id: string) => {
+    setInterests(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  // ── Save (info or about) ─────────────────────────────────────────────────────
+
+  const handleSave = async () => {
+    if (tab === 'info' && !fullName.trim()) { toast.error('Name is required'); return; }
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {};
+      if (tab === 'info') {
+        payload.fullName = fullName.trim();
+        if (dob) payload.dateOfBirth = dob;
+      } else if (tab === 'about') {
+        payload.bio = bio.trim();
+        payload.interests = interests;
+      }
+      const { data } = await client.patch('/users/me', payload);
+      if (token) setAuth(token, data);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+      toast.success('Saved!');
+    } catch {
+      toast.error('Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const TABS: { id: Tab; label: string; icon: typeof IconUser }[] = [
+    { id: 'info',   label: 'Info',      icon: IconUser },
+    { id: 'about',  label: 'About',     icon: IconHeart },
+    { id: 'photos', label: 'Photos',    icon: IconPhoto },
+  ];
 
   return (
-    <div className="min-h-full bg-[var(--color-bg)]">
+    <div className="pb-12">
+      {/* Page header */}
+      <div className="mb-7">
+        <h1 className="text-2xl font-extrabold text-heading">Your Profile</h1>
+        <p className="text-sm text-muted mt-1">Manage your personal information and public presence</p>
+      </div>
 
-      {/* ── Header — gold strip ── */}
-      <div className="relative overflow-hidden" style={{ background: 'var(--gradient-gold)' }}>
-        <div className="absolute -right-10 -top-10 w-[180px] h-[180px] rounded-full border border-white/20 hidden md:block" />
-        <div className="absolute right-24 bottom-0 w-[90px] h-[90px] rounded-full border border-white/10 hidden md:block" />
-        <div className="absolute left-[40%] -top-4 w-[70px] h-[70px] rounded-full border border-white/10 hidden md:block" />
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
 
-        <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10 py-4 md:py-5">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 md:gap-4">
-              {/* Avatar */}
-              <div className="relative flex-shrink-0">
-                <div className="w-[52px] h-[52px] md:w-[64px] md:h-[64px] rounded-full border-[3px] border-white/60 md:border-white shadow overflow-hidden bg-white/20 flex items-center justify-center">
-                  {user?.avatarUrl
-                    ? <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
-                    : <span className="text-[22px] md:text-[26px] font-bold text-white">{initials}</span>
-                  }
-                </div>
-                <button className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow">
-                  <IconCamera size={10} stroke={2} color="var(--color-amber)" />
-                </button>
+        {/* ── Left: identity card ──────────────────────────────────────── */}
+        <div className="w-full lg:w-72 xl:w-80 shrink-0">
+          <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+          <IdentityCard
+            fullName={fullName} avatarUrl={avatarUrl} uploading={uploading}
+            user={user} isCompanion={isCompanion}
+            fileRef={avatarRef}
+            onClickAvatar={() => avatarRef.current?.click()}
+          />
+        </div>
+
+        {/* ── Right: tabs + content ─────────────────────────────────────── */}
+        <div className="flex-1 min-w-0">
+
+          {/* Tab bar */}
+          <div className="flex gap-1 bg-surface-alt rounded-2xl p-1 mb-5 border border-border">
+            {TABS.map(({ id, label, icon: Icon }) => (
+              <button key={id} onClick={() => setTab(id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  tab === id ? 'text-white shadow-sm' : 'text-muted hover:text-body'
+                }`}
+                style={tab === id ? { background: 'linear-gradient(135deg,#00D4AA,#00C2D8 50%,#4F8CFF)' } : {}}>
+                <Icon size={15} stroke={tab === id ? 2.2 : 1.8} />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Info tab ─────────────────────────────────────────────── */}
+          {tab === 'info' && (
+            <div className="bg-surface rounded-2xl border border-border divide-y divide-border/60">
+              <div className="px-6 py-5">
+                <label className="flex items-center gap-1.5 text-[11px] font-bold text-muted uppercase tracking-widest mb-3">
+                  <IconUser size={11} /> Full Name
+                </label>
+                <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name"
+                  className="w-full text-sm text-body bg-surface-alt border border-border rounded-xl px-4 py-3 outline-none placeholder:text-muted/40 focus:ring-2 focus:ring-accent-green/30 focus:border-accent-green/50 transition" />
               </div>
-              {/* Info */}
-              <div>
-                <h1 className="text-[17px] md:text-[20px] font-semibold text-white leading-none">{user?.fullName ?? 'You'}</h1>
-                <p className="text-[11px] text-white/70 mt-0.5">{user?.email ?? ''}</p>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="text-[10px] text-white/60 flex items-center gap-1">
-                    <IconMapPin size={10} stroke={1.5} />Delhi NCR
+
+              <div className="px-6 py-5">
+                <label className="flex items-center gap-1.5 text-[11px] font-bold text-muted uppercase tracking-widest mb-3">
+                  <IconMail size={11} /> Email Address
+                </label>
+                <div className="flex items-center gap-3 bg-surface-alt border border-border rounded-xl px-4 py-3">
+                  <p className="text-sm text-body flex-1">{user?.email}</p>
+                  <span className="flex items-center gap-1 text-[10px] text-accent-green font-semibold shrink-0">
+                    <IconShield size={11} /> Verified
                   </span>
                 </div>
               </div>
-            </div>
-            {/* Edit button */}
-            <button className="flex items-center gap-1.5 text-[12px] text-white font-medium bg-white/15 border border-white/30 px-3 py-1.5 rounded-[8px] hover:bg-white/25 transition-colors flex-shrink-0">
-              <IconEdit size={13} stroke={1.5} />
-              Edit Profile
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10">
-        {/* ── Two-column body ── */}
-        <div className="grid md:grid-cols-[300px,1fr] lg:grid-cols-[320px,1fr] gap-6 pb-10">
-
-          {/* ── Left column ── */}
-          <div className="flex flex-col gap-4">
-
-            {/* Activity stats */}
-            <div className="bg-white rounded-[16px] border border-[var(--color-border)] p-5">
-              <p className="text-[11px] font-semibold text-[var(--color-gray)] uppercase tracking-wider mb-3">Activity</p>
-              <div className="grid grid-cols-3 gap-2.5">
-                {[
-                  { label: 'Bookings', value: bookingCount ?? '—', icon: <IconCalendarEvent size={15} stroke={1.5} color="var(--color-amber)" /> },
-                  { label: 'Completed', value: completedCount, icon: <IconStar size={15} stroke={1.5} color="var(--color-amber)" /> },
-                  { label: 'Reviews',  value: 0,               icon: <IconHeart size={15} stroke={1.5} color="var(--color-amber)" /> },
-                ].map(stat => (
-                  <div key={stat.label} className="flex flex-col items-center gap-1.5 bg-[var(--color-gray-light)] rounded-[10px] py-3">
-                    {stat.icon}
-                    <p className="text-[18px] font-bold text-[var(--color-dark)] leading-none">{stat.value}</p>
-                    <p className="text-[10px] text-[var(--color-gray)]">{stat.label}</p>
-                  </div>
-                ))}
+              <div className="px-6 py-5">
+                <label className="flex items-center gap-1.5 text-[11px] font-bold text-muted uppercase tracking-widest mb-3">
+                  🎂 Date of Birth
+                </label>
+                <DatePicker value={dob} onChange={setDob} placeholder="Select your date of birth" />
+                <p className="text-[11px] text-muted mt-2">Must be 18 or older to use Meytle</p>
               </div>
-            </div>
 
-            {/* Companion CTA — role-aware */}
-            {companionProfileId !== null ? (
-              <button
-                onClick={() => navigate('/app/companion/dashboard')}
-                className="w-full bg-[var(--color-amber-light)] border border-[var(--color-amber)] rounded-[14px] p-4 flex items-center justify-between hover:opacity-90 transition-opacity"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-[10px] bg-[var(--color-amber)] flex items-center justify-center flex-shrink-0">
-                    <IconLayoutDashboard size={20} stroke={1.5} color="white" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[13px] font-semibold text-[var(--color-amber-dark)]">Companion Dashboard</p>
-                    <p className="text-[11px] text-[var(--color-amber)]">Manage your bookings</p>
-                  </div>
-                </div>
-                <IconChevronRight size={16} stroke={1.5} className="text-[var(--color-amber)]" />
-              </button>
-            ) : (
-              <button
-                onClick={() => navigate('/app/companion/onboarding')}
-                className="w-full bg-[var(--color-amber-light)] border border-[var(--color-amber)] rounded-[14px] p-4 flex items-center justify-between hover:opacity-90 transition-opacity"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-[10px] bg-[var(--color-amber)] flex items-center justify-center flex-shrink-0">
-                    <IconUsers size={20} stroke={1.5} color="white" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[13px] font-semibold text-[var(--color-amber-dark)]">Become a Companion</p>
-                    <p className="text-[11px] text-[var(--color-amber)]">Earn on your schedule</p>
-                  </div>
-                </div>
-                <IconChevronRight size={16} stroke={1.5} className="text-[var(--color-amber)]" />
-              </button>
-            )}
-
-            {/* Verification card */}
-            <div className="bg-white rounded-[16px] border border-[var(--color-border)] p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <IconShield size={15} stroke={1.5} color="var(--color-amber)" />
-                <p className="text-[12px] font-semibold text-[var(--color-dark)]">Verification Status</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                {[
-                  { label: 'Email',         done: true  },
-                  { label: 'Phone',         done: false },
-                  { label: 'Government ID', done: false },
-                ].map(v => (
-                  <div key={v.label} className="flex items-center justify-between">
-                    <span className="text-[12px] text-[var(--color-gray)]">{v.label}</span>
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                      v.done
-                        ? 'bg-[var(--color-success-bg)] text-[var(--color-success)]'
-                        : 'bg-[var(--color-gray-light)] text-[var(--color-gray)]'
-                    }`}>
-                      {v.done ? 'Verified' : 'Not verified'}
+              <div className="px-6 py-5">
+                <label className="flex items-center gap-1.5 text-[11px] font-bold text-muted uppercase tracking-widest mb-3">
+                  <IconShield size={11} /> Account Type
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {user?.roles.map((r) => (
+                    <span key={r} className="text-xs font-semibold px-3 py-1.5 rounded-full capitalize"
+                      style={r === 'companion'
+                        ? { background: 'linear-gradient(135deg,#00D4AA18,#4F8CFF18)', color: '#00C2D8', border: '1px solid #00D4AA30' }
+                        : { background: '#F7FBFA', color: '#64748B', border: '1px solid #E8F1F0' }}>
+                      {r}
                     </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
+          )}
 
-          </div>
+          {/* ── About tab ────────────────────────────────────────────── */}
+          {tab === 'about' && (
+            <div className="space-y-5">
+              {/* Bio */}
+              <div className="bg-surface rounded-2xl border border-border px-6 py-5">
+                <label className="flex items-center gap-1.5 text-[11px] font-bold text-muted uppercase tracking-widest mb-3">
+                  <IconInfoCircle size={11} /> Bio
+                </label>
+                <textarea
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  maxLength={500}
+                  rows={4}
+                  placeholder="Write a short bio about yourself — your personality, what you enjoy, what makes you you…"
+                  className="w-full text-sm text-body bg-surface-alt border border-border rounded-xl px-4 py-3 outline-none placeholder:text-muted/40 focus:ring-2 focus:ring-accent-green/30 focus:border-accent-green/50 transition resize-none leading-relaxed"
+                />
+                <p className="text-[11px] text-muted mt-1.5 text-right">{bio.length}/500</p>
+              </div>
 
-          {/* ── Right column ── */}
-          <div className="flex flex-col gap-5">
-            <SettingsSection
-              title="Account"
-              rows={[
-                { icon: <IconEdit size={16} stroke={1.5} />,       label: 'Edit Profile',           onClick: () => {} },
-                { icon: <IconShield size={16} stroke={1.5} />,     label: 'Identity Verification',  value: 'Not verified', onClick: () => {} },
-                { icon: <IconCreditCard size={16} stroke={1.5} />, label: 'Payment Methods',        onClick: () => {} },
-              ]}
-            />
-            <SettingsSection
-              title="Preferences"
-              rows={[
-                { icon: <IconBell size={16} stroke={1.5} />,  label: 'Notifications',    onClick: () => {} },
-                { icon: <IconHeart size={16} stroke={1.5} />, label: 'Saved Companions', onClick: () => {} },
-              ]}
-            />
-            <SettingsSection
-              title="Support"
-              rows={[
-                { icon: <IconHelp size={16} stroke={1.5} />,   label: 'Help & Support', onClick: () => {} },
-                { icon: <IconLogout size={16} stroke={1.5} />, label: 'Log Out', danger: true, onClick: handleLogout },
-              ]}
-            />
-            <p className="text-center text-[11px] text-[var(--color-gray)]">Meytle v1.0.0</p>
-          </div>
+              {/* Interests */}
+              <div className="bg-surface rounded-2xl border border-border px-6 py-5">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="flex items-center gap-1.5 text-[11px] font-bold text-muted uppercase tracking-widest">
+                    <IconHeart size={11} /> Interests
+                  </label>
+                  <span className="text-[11px] text-muted">{interests.length} selected</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {INTERESTS.map(({ id, label, emoji }) => {
+                    const active = interests.includes(id);
+                    return (
+                      <button key={id} onClick={() => toggleInterest(id)}
+                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold border transition-all ${
+                          active ? 'text-white border-transparent shadow-sm' : 'bg-surface-alt border-border text-muted hover:border-accent-green/40 hover:text-body'
+                        }`}
+                        style={active ? { background: 'linear-gradient(135deg,#00D4AA,#00C2D8 50%,#4F8CFF)' } : {}}>
+                        <span>{emoji}</span>{label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
+          {/* ── Photos tab ───────────────────────────────────────────── */}
+          {tab === 'photos' && (
+            <div className="bg-surface rounded-2xl border border-border p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <p className="text-sm font-bold text-heading">Your Photos</p>
+                  <p className="text-xs text-muted mt-0.5">{photos.length}/9 photos · shown on your public profile</p>
+                </div>
+                {photos.length < 9 && (
+                  <button onClick={() => photoRef.current?.click()} disabled={uploadingPhoto}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-white px-3.5 py-2 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-60"
+                    style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+                    {uploadingPhoto ? <IconLoader2 size={13} className="animate-spin" /> : <IconPlus size={13} />}
+                    Add Photos
+                  </button>
+                )}
+              </div>
+
+              <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
+
+              {photos.length === 0 ? (
+                <button onClick={() => photoRef.current?.click()} disabled={uploadingPhoto}
+                  className="w-full border-2 border-dashed border-border rounded-2xl py-16 flex flex-col items-center gap-3 hover:border-accent-green/40 transition-colors group">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"
+                    style={{ background: 'linear-gradient(135deg,#00D4AA18,#4F8CFF18)' }}>
+                    {uploadingPhoto
+                      ? <IconLoader2 size={22} className="text-accent-green animate-spin" />
+                      : <IconPhoto size={22} className="text-accent-green" />}
+                  </div>
+                  <p className="text-sm font-semibold text-heading">Add your first photo</p>
+                  <p className="text-xs text-muted">JPG, PNG or WebP · max 8 MB each</p>
+                </button>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  {photos.map((url, idx) => (
+                    <div key={url} className="group relative aspect-square rounded-2xl overflow-hidden bg-surface-alt">
+                      <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button onClick={() => removePhoto(url)}
+                          className="w-9 h-9 rounded-full bg-red-500/90 flex items-center justify-center text-white hover:bg-red-600 transition-colors shadow-lg">
+                          <IconTrash size={15} />
+                        </button>
+                      </div>
+                      {idx === 0 && (
+                        <div className="absolute top-2 left-2 text-[10px] font-bold text-white bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full">
+                          Cover
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add more slot */}
+                  {photos.length < 9 && (
+                    <button onClick={() => photoRef.current?.click()} disabled={uploadingPhoto}
+                      className="aspect-square rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 hover:border-accent-green/40 transition-colors group">
+                      {uploadingPhoto
+                        ? <IconLoader2 size={20} className="text-accent-green animate-spin" />
+                        : <IconPlus size={20} className="text-muted group-hover:text-accent-green transition-colors" />}
+                      <p className="text-[10px] text-muted group-hover:text-accent-green transition-colors">Add</p>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Save button (not on photos tab — photos auto-save) */}
+          {tab !== 'photos' && (
+            <button onClick={handleSave} disabled={saving || (tab === 'info' && !fullName.trim())}
+              className="mt-5 w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 hover:opacity-90 active:scale-[0.99] shadow-md"
+              style={{ background: 'linear-gradient(135deg,#00D4AA 0%,#00C2D8 50%,#4F8CFF 100%)' }}>
+              {saving
+                ? <><IconLoader2 size={15} className="animate-spin" /> Saving…</>
+                : saved
+                ? <><IconCheck size={15} /> Saved!</>
+                : 'Save Changes'}
+            </button>
+          )}
         </div>
       </div>
     </div>
-  )
+  );
 }

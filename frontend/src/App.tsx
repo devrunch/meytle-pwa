@@ -1,84 +1,58 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { ToastProvider } from '@/components/ui'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { RequireAuth } from '@/components/RequireAuth'
-import { PageSkeleton } from '@/components/PageSkeleton'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { AuthGuard, GuestGuard } from './components/layout/AuthGuard';
+import { AppLayout } from './components/layout/AppLayout';
+import { LandingPage } from './pages/LandingPage';
+import { LoginPage } from './pages/auth/LoginPage';
+import { RegisterPage } from './pages/auth/RegisterPage';
+import { HomePage } from './pages/app/HomePage';
+import { BrowsePage } from './pages/app/BrowsePage';
+import { ProfilePage } from './pages/app/ProfilePage';
+import { OnboardingWizard } from './pages/companion/OnboardingWizard';
+import { CompanionDashboard } from './pages/companion/CompanionDashboard';
+import { CompanionProfilePage } from './pages/companion/CompanionProfile';
+import { useAuthStore } from './store/authStore';
 
-const PublicLayout = lazy(() => import('@/layouts/PublicLayout'))
-const AppLayout = lazy(() => import('@/layouts/AppLayout'))
-
-const Landing = lazy(() => import('@/pages/Landing'))
-const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
-const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
-
-const HomePage = lazy(() => import('@/pages/app/HomePage'))
-const MapPage = lazy(() => import('@/pages/app/MapPage'))
-const MessagesPage = lazy(() => import('@/pages/app/MessagesPage'))
-const BookingsPage = lazy(() => import('@/pages/app/BookingsPage'))
-const BookingDetailPage = lazy(() => import('@/pages/app/BookingDetailPage'))
-const ProfilePage = lazy(() => import('@/pages/app/ProfilePage'))
-
-const CompanionProfile = lazy(() => import('@/pages/companion/CompanionProfile'))
-const CompanionDashboard = lazy(() => import('@/pages/companion/CompanionDashboard'))
-const BookingDetail = lazy(() => import('@/pages/companion/BookingDetail'))
-const OnboardingWizard = lazy(() => import('@/pages/companion/OnboardingWizard'))
-const CompanionAccount = lazy(() => import('@/pages/companion/CompanionAccount'))
-
-const BookingFlow = lazy(() => import('@/pages/booking/BookingFlow'))
-
-const UIShowcase = import.meta.env.DEV
-  ? lazy(() => import('@/pages/UIShowcase'))
-  : null
+function RootRedirect() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)();
+  return isAuthenticated ? <Navigate to="/home" replace /> : <LandingPage />;
+}
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <ToastProvider>
-        <BrowserRouter>
-          <Suspense fallback={<PageSkeleton />}>
-            <Routes>
-              {/* Public routes */}
-              <Route element={<PublicLayout />}>
-                <Route path="/" element={<Landing />} />
-                <Route path="/companions/:id" element={<CompanionProfile />} />
-              </Route>
+    <BrowserRouter>
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          style: { borderRadius: '12px', fontSize: '14px' },
+        }}
+      />
+      <Routes>
+        {/* Root: redirect to /home if logged in, else show landing */}
+        <Route path="/" element={<RootRedirect />} />
 
-              {/* Auth routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
+        {/* Guest-only */}
+        <Route element={<GuestGuard />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+        </Route>
 
-              {/* Protected app routes */}
-              <Route
-                path="/app"
-                element={
-                  <RequireAuth>
-                    <AppLayout />
-                  </RequireAuth>
-                }
-              >
-                <Route index element={<HomePage />} />
-                <Route path="map" element={<MapPage />} />
-                <Route path="messages" element={<MessagesPage />} />
-                <Route path="messages/:conversationId" element={<MessagesPage />} />
-                <Route path="bookings" element={<BookingsPage />} />
-                <Route path="bookings/new/:companionId" element={<BookingFlow />} />
-                <Route path="bookings/:bookingId" element={<BookingDetailPage />} />
-                <Route path="profile" element={<ProfilePage />} />
-                <Route path="companion/dashboard" element={<CompanionDashboard />} />
-                <Route path="companion/bookings/:bookingId" element={<BookingDetail />} />
-                <Route path="companion/onboarding" element={<OnboardingWizard />} />
-                <Route path="companion/account" element={<CompanionAccount />} />
-              </Route>
+        {/* Protected app */}
+        <Route element={<AuthGuard />}>
+          {/* Full-page (no navbar) */}
+          <Route path="/become-companion" element={<OnboardingWizard />} />
 
-              {/* Dev only */}
-              {import.meta.env.DEV && UIShowcase && (
-                <Route path="/showcase" element={<UIShowcase />} />
-              )}
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </ToastProvider>
-    </ErrorBoundary>
-  )
+          <Route element={<AppLayout />}>
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/browse" element={<BrowsePage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/companion/dashboard" element={<CompanionDashboard />} />
+            <Route path="/companion/profile" element={<CompanionProfilePage />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }

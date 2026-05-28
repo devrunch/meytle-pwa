@@ -27,6 +27,8 @@ import { MessagesModule } from './messages/messages.module'
 import { ReviewsModule } from './reviews/reviews.module'
 import { NotificationsModule } from './common/notifications.module'
 import { UploadsModule } from './uploads/uploads.module'
+import { ServiceArea } from './service-areas/service-area.entity'
+import { ServiceAreasModule } from './service-areas/service-areas.module'
 
 const entities = [
   User,
@@ -36,6 +38,7 @@ const entities = [
   Review,
   Notification,
   PlatformConfig,
+  ServiceArea,
 ]
 
 @Module({
@@ -64,6 +67,7 @@ const entities = [
     ReviewsModule,
     NotificationsModule,
     UploadsModule,
+    ServiceAreasModule,
   ],
 })
 export class AppModule {}

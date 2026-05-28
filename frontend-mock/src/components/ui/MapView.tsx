@@ -43,16 +43,16 @@ function lngLatToGeoJSON(coords: LngLat[]): number[][] {
   return coords.map((c) => [c.lng, c.lat])
 }
 
-// ─── Mock companion pins ──────────────────────────────────────────────────────
+// ─── Companion pin type ───────────────────────────────────────────────────────
 
-const COMPANION_PINS = [
-  { id: '1', name: 'Aanya',  price: 800,  available: true,  lng: 72.826, lat: 19.054 },
-  { id: '2', name: 'Rohan',  price: 1200, available: false, lng: 72.835, lat: 19.064 },
-  { id: '3', name: 'Priya',  price: 700,  available: true,  lng: 72.820, lat: 19.044 },
-  { id: '4', name: 'Kabir',  price: 1000, available: true,  lng: 72.843, lat: 19.058 },
-  { id: '5', name: 'Meera',  price: 750,  available: true,  lng: 72.815, lat: 19.060 },
-  { id: '6', name: 'Arjun',  price: 800,  available: false, lng: 72.831, lat: 19.070 },
-]
+export interface CompanionPin {
+  id: string
+  name: string
+  price: number
+  available: boolean
+  lng: number
+  lat: number
+}
 
 // ─── Layer IDs ────────────────────────────────────────────────────────────────
 
@@ -70,9 +70,10 @@ interface MapViewProps {
   drawMode?: boolean
   className?: string
   fullscreen?: boolean
+  pins?: CompanionPin[]
 }
 
-export default function MapView({ height = 400, drawMode = false, className, fullscreen = false }: MapViewProps) {
+export default function MapView({ height = 400, drawMode = false, className, fullscreen = false, pins = [] }: MapViewProps) {
   const containerRef   = useRef<HTMLDivElement>(null)
   const mapRef         = useRef<maplibregl.Map | null>(null)
   const markersRef     = useRef<maplibregl.Marker[]>([])
@@ -82,7 +83,7 @@ export default function MapView({ height = 400, drawMode = false, className, ful
   const [tool, setTool]           = useState<DrawTool>('move')
   const [areas, setAreas]         = useState<Area[]>([])
   const [liveCoords, setLiveCoords] = useState<LngLat[]>([])
-  const [selectedPin, setSelectedPin] = useState<typeof COMPANION_PINS[number] | null>(null)
+  const [selectedPin, setSelectedPin] = useState<CompanionPin | null>(null)
   const [search, setSearch]       = useState('')
   const [searching, setSearching] = useState(false)
 
@@ -158,7 +159,7 @@ export default function MapView({ height = 400, drawMode = false, className, ful
     markersRef.current.forEach((m) => m.remove())
     markersRef.current = []
 
-    COMPANION_PINS.forEach((pin) => {
+    pins.forEach((pin) => {
       const el = document.createElement('div')
       el.className = [
         'flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold shadow-md border-[1.5px] cursor-pointer transition-all duration-150',
@@ -180,7 +181,7 @@ export default function MapView({ height = 400, drawMode = false, className, ful
     })
 
     return () => { markersRef.current.forEach((m) => m.remove()); markersRef.current = [] }
-  }, [mapReady, drawMode])
+  }, [mapReady, drawMode, pins])
 
   // ── Sync areas → map source ──────────────────────────────────────────────────
 

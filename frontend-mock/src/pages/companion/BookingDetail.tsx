@@ -6,6 +6,7 @@ import {
   IconUser, IconNotes, IconShieldCheck, IconAlertCircle,
 } from '@tabler/icons-react'
 import { api } from '../../lib/api'
+import { useToast } from '../../components/ui/Toast'
 import LocationPickerMap from '../../components/ui/LocationPickerMap'
 
 type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
@@ -50,8 +51,8 @@ const SERVICE_LABELS: Record<string, string> = {
   nature: 'Nature Walks', movies: 'Movies', shopping: 'Shopping', gaming: 'Gaming',
 }
 
-function parseEwkt(ewkt: string | null): { lng: number; lat: number } | undefined {
-  if (!ewkt) return undefined
+function parseEwkt(ewkt: unknown): { lng: number; lat: number } | undefined {
+  if (!ewkt || typeof ewkt !== 'string') return undefined
   const m = ewkt.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/)
   if (!m) return undefined
   return { lng: parseFloat(m[1]), lat: parseFloat(m[2]) }
@@ -92,6 +93,7 @@ const STATUS_CONFIG: Record<BookingStatus, { label: string; bg: string; text: st
 export default function BookingDetail() {
   const { bookingId } = useParams<{ bookingId: string }>()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [booking, setBooking] = useState<BookingDisplay | null>(null)
   const [loading, setLoading] = useState(true)
@@ -111,7 +113,10 @@ export default function BookingDetail() {
     try {
       await api.patch(`/bookings/${booking.id}/accept`)
       setBooking(b => b ? { ...b, status: 'confirmed' } : b)
-    } catch {} finally {
+      toast('success', 'Booking accepted')
+    } catch {
+      toast('error', 'Could not accept booking', 'Please try again.')
+    } finally {
       setActing(false)
     }
   }
@@ -122,7 +127,10 @@ export default function BookingDetail() {
     try {
       await api.patch(`/bookings/${booking.id}/decline`)
       setBooking(b => b ? { ...b, status: 'cancelled' } : b)
-    } catch {} finally {
+      toast('info', 'Booking declined')
+    } catch {
+      toast('error', 'Could not decline booking', 'Please try again.')
+    } finally {
       setActing(false)
     }
   }

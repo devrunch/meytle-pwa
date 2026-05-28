@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconSend, IconSearch, IconMessages,
-  IconLock, IconCalendar,
+  IconLock, IconCalendar, IconMessageOff,
 } from '@tabler/icons-react'
-import { Avatar } from '../../components/ui'
+import { Avatar, EmptyState } from '../../components/ui'
+import { useToast } from '../../components/ui/Toast'
 import { api } from '../../lib/api'
 import { connectSocket, disconnectSocket, getSocket } from '../../lib/socket'
 import { useAuthStore } from '../../store/auth'
@@ -151,10 +152,11 @@ function ConversationList({ conversations, activeId, onSelect, loading }: {
             </div>
           ))
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="text-[14px] text-[var(--color-gray)]">No conversations yet</p>
-            <p className="text-[11px] text-[var(--color-gray)] mt-1">Confirmed bookings will appear here</p>
-          </div>
+          <EmptyState
+            icon={<IconMessageOff size={28} stroke={1.2} />}
+            title="No messages yet"
+            body="Your conversations with companions appear here after booking"
+          />
         ) : (
           filtered.map(conv => {
             const { canMessage } = getMessagingState(conv.status, conv.bookedStart, conv.bookedEnd, conv.service)
@@ -205,6 +207,7 @@ function ChatView({ conv, myUserId, onBack }: {
   myUserId: string
   onBack: () => void
 }) {
+  const toast = useToast()
   const [text, setText] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingMsgs, setLoadingMsgs] = useState(true)
@@ -266,8 +269,11 @@ function ChatView({ conv, myUserId, onBack }: {
 
   function send() {
     if (!text.trim()) return
-    getSocket().emit('send', { bookingId: conv.bookingId, content: text.trim() })
+    const content = text.trim()
     setText('')
+    getSocket().emit('send', { bookingId: conv.bookingId, content }, (ack: { error?: string }) => {
+      if (ack?.error) toast('error', 'Message not sent', ack.error)
+    })
   }
 
   const header = (

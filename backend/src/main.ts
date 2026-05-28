@@ -4,6 +4,9 @@ import { ValidationPipe } from '@nestjs/common'
 import { AppModule } from './app.module'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
+import { checkEnv } from './env-check'
+
+checkEnv()
 
 async function bootstrap() {
   const uploadsDir = join(process.cwd(), 'uploads', 'photos')

@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconCalendarEvent, IconClock, IconMapPin, IconChevronRight,
-  IconCircleCheck, IconLoader, IconWallet,
+  IconCircleCheck, IconLoader, IconWallet, IconCalendarOff,
 } from '@tabler/icons-react'
-import { Avatar, Badge } from '../../components/ui'
+import { Avatar, Badge, EmptyState } from '../../components/ui'
 import { api } from '../../lib/api'
 
 type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
@@ -186,19 +186,12 @@ export default function BookingsPage() {
             ))}
           </div>
         ) : current.length === 0 ? (
-          <div className="py-20 text-center">
-            <div className="w-16 h-16 rounded-full bg-[var(--color-gray-light)] flex items-center justify-center mx-auto mb-4">
-              <IconCalendarEvent size={28} stroke={1.2} className="text-[var(--color-gray)]" />
-            </div>
-            <p className="text-[15px] font-medium text-[var(--color-dark)]">No bookings yet</p>
-            <p className="text-[13px] text-[var(--color-gray)] mt-1">Find a companion and plan your next experience</p>
-            <button
-              onClick={() => navigate('/app')}
-              className="mt-5 px-6 py-2.5 btn-gradient-primary rounded-full text-[13px] font-medium text-white"
-            >
-              Explore companions
-            </button>
-          </div>
+          <EmptyState
+            icon={<IconCalendarOff size={28} stroke={1.2} />}
+            title="No bookings yet"
+            body="Browse companions and book your first experience"
+            action={{ label: 'Discover companions', onClick: () => navigate('/app') }}
+          />
         ) : (
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
             {current.map(booking => (

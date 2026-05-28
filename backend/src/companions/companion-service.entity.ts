@@ -6,7 +6,8 @@ import {
   JoinColumn,
   Unique,
 } from 'typeorm';
-import { CompanionProfile, ServiceType } from './companion-profile.entity';
+import { CompanionProfile } from './companion-profile.entity';
+import { ServiceType } from './service-type.enum';
 
 @Entity('companion_services')
 @Unique(['companionId', 'serviceType'])

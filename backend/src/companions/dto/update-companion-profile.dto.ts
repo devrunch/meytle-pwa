@@ -22,7 +22,7 @@ export class UpdateCompanionProfileDto {
   bio?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   profilePhotoUrl?: string;
 
   @IsOptional()

@@ -1,44 +1,99 @@
-export type ExperienceType =
-  | 'coffee'
-  | 'dining'
-  | 'concert'
-  | 'travel'
-  | 'fitness'
-  | 'culture'
-  | 'nature'
-  | 'movies'
-  | 'shopping'
-  | 'gaming'
+export type UserRole = 'user' | 'companion' | 'admin';
 
-export interface Service {
-  type: ExperienceType
-  label: string
+export interface User {
+  id: string;
+  email: string;
+  fullName: string;
+  avatarUrl?: string | null;
+  dateOfBirth?: string | null;
+  bio?: string | null;
+  interests?: string[] | null;
+  photos?: string[] | null;
+  roles: UserRole[];
 }
 
-export interface Companion {
-  id: string
-  name: string
-  age: number
-  city: string
-  neighbourhood: string
-  bio: string
-  avatarUrl: string | null
-  initials: string
-  services: Service[]
-  rating: number
-  reviewCount: number
-  isVerified: boolean
-  isAvailableNow: boolean
-  priceFrom: number
+export interface CompanionProfile {
+  id: string;
+  userId: string;
+  displayName: string;
+  bio: string;
+  profilePhotoUrl?: string;
+  hourlyRatePaisa: number;
+  ratingAvg?: number;
+  ratingCount?: number;
+  isAvailableNow: boolean;
+  profileStatus: 'pending_verification' | 'active' | 'inactive' | 'rejected';
+  serviceAreaRadiusKm: number;
+  serviceAreaCentre?: string;
+  stripeConnectedAccountId?: string | null;
+  stripePayoutsEnabled?: boolean;
+  identityVerifiedByStripe?: boolean;
+  identityVerifiedByVeriff?: boolean;
+  identityVerifiedByAdmin?: boolean;
+  services?: CompanionService[];
+  user?: User;
 }
 
-export interface Experience {
-  type: ExperienceType
-  label: string
-  imageUrl?: string
+export interface CompanionAvailability {
+  id: string;
+  companionId: string;
+  dayOfWeek: number;
+  fromTime: string;
+  toTime: string;
 }
 
-export type NavTab = 'home' | 'map' | 'messages' | 'bookings' | 'profile'
+export interface CompanionService {
+  id: string;
+  companionId: string;
+  serviceType: ServiceType;
+}
 
-export type ButtonVariant = 'primary' | 'ghost' | 'outline'
-export type ButtonSize = 'sm' | 'md' | 'lg'
+export type ServiceType = 'coffee' | 'dining' | 'concert' | 'travel' | 'fitness' | 'culture' | 'nature' | 'movies' | 'shopping' | 'gaming';
+
+export interface Booking {
+  id: string;
+  userId: string;
+  companionId: string;
+  serviceType: ServiceType;
+  bookedStart: string;
+  bookedEnd: string;
+  bookedDurationMinutes: number;
+  meetingSpotText: string;
+  meetingSpot?: string;
+  amountPaisa: number;
+  status: BookingStatus;
+  otpCode?: string;
+  otpVerifiedAt?: string;
+  actualStart?: string;
+  actualEnd?: string;
+  cancelledBy?: 'user' | 'companion' | 'system';
+  cancelledAt?: string;
+  cancellationReason?: string;
+  isCustomRequest: boolean;
+  customNote?: string;
+  companion?: CompanionProfile;
+  user?: User;
+  createdAt: string;
+}
+
+export type BookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled';
+
+export interface AuthTokens {
+  accessToken: string;
+}
+
+export interface ServiceArea {
+  id: string;
+  name: string;
+  city: string;
+  lat: number;
+  lng: number;
+  defaultRadiusKm: number;
+  displayOrder: number;
+  isActive: boolean;
+}

@@ -4,9 +4,10 @@ import {
   IconArrowLeft, IconUser, IconBrandStripe, IconCheck, IconAlertCircle,
   IconCurrencyRupee, IconCalendarEvent, IconClock, IconShieldCheck,
   IconExternalLink, IconEdit, IconCamera, IconMapPin, IconStar,
-  IconBell, IconLock, IconChevronRight, IconX,
+  IconBell, IconLock, IconChevronRight, IconX, IconEye, IconEyeOff, IconHourglass,
 } from '@tabler/icons-react'
 import { api } from '../../lib/api'
+import { useToast } from '../../components/ui/Toast'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,47 @@ function hhmmToDisplay(hhmm: string): string {
   return `${display}:${String(m).padStart(2, '0')} ${period}`
 }
 
+// ── Profile status config ─────────────────────────────────────────────────────
+
+const PROFILE_STATUS_CONFIG: Record<string, {
+  label: string; badge: string; badgeBg: string;
+  bannerBg: string; bannerBorder: string; bannerText: string;
+  icon: React.ReactNode; detail: string; visible: boolean
+}> = {
+  pending_verification: {
+    label: 'Pending review',
+    badge: 'text-yellow-700', badgeBg: 'bg-yellow-50',
+    bannerBg: 'bg-yellow-50', bannerBorder: 'border-yellow-200', bannerText: 'text-yellow-800',
+    icon: <IconHourglass size={15} stroke={1.5} />,
+    detail: 'Your profile is under review. It is not visible to users yet and won\'t appear in search results.',
+    visible: false,
+  },
+  active: {
+    label: 'Active',
+    badge: 'text-[var(--color-success)]', badgeBg: 'bg-[var(--color-success-bg)]',
+    bannerBg: 'bg-[var(--color-success-bg)]', bannerBorder: 'border-green-200', bannerText: 'text-green-800',
+    icon: <IconEye size={15} stroke={1.5} />,
+    detail: 'Your profile is live and publicly visible. Users can find and book you.',
+    visible: true,
+  },
+  inactive: {
+    label: 'Inactive',
+    badge: 'text-[var(--color-gray)]', badgeBg: 'bg-[var(--color-gray-light)]',
+    bannerBg: 'bg-[var(--color-gray-light)]', bannerBorder: 'border-[var(--color-border)]', bannerText: 'text-[var(--color-dark)]',
+    icon: <IconEyeOff size={15} stroke={1.5} />,
+    detail: 'Your profile is hidden and not searchable. Contact support to reactivate.',
+    visible: false,
+  },
+  rejected: {
+    label: 'Rejected',
+    badge: 'text-[var(--color-error)]', badgeBg: 'bg-red-50',
+    bannerBg: 'bg-red-50', bannerBorder: 'border-red-200', bannerText: 'text-red-800',
+    icon: <IconX size={15} stroke={1.5} />,
+    detail: 'Your profile was not approved. Please contact support for more information.',
+    visible: false,
+  },
+}
+
 // ── Stripe status config (UI only — no backend yet) ──────────────────────────
 
 const STRIPE_STATUS_CONFIG: Record<StripeStatus, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
@@ -104,6 +146,7 @@ function ToggleRow({ label, sub, defaultOn }: { label: string; sub: string; defa
 
 export default function CompanionAccount() {
   const navigate = useNavigate()
+  const toast = useToast()
   const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [tab, setTab] = useState<Tab>('profile')
@@ -122,6 +165,7 @@ export default function CompanionAccount() {
   // Edit state — rate
   const [editingRate, setEditingRate] = useState(false)
   const [hourlyRate, setHourlyRate] = useState(0)
+  const [rateTouched, setRateTouched] = useState(false)
   const [savingRate, setSavingRate] = useState(false)
 
   // Edit state — services
@@ -174,17 +218,25 @@ export default function CompanionAccount() {
       await api.patch('/companions/me/profile', { bio })
       setProfile(p => p ? { ...p, bio } : p)
       setEditingBio(false)
-    } catch {} finally { setSavingBio(false) }
+      toast('success', 'Bio saved')
+    } catch {
+      toast('error', "Couldn't save changes")
+    } finally { setSavingBio(false) }
   }
 
   async function saveRate() {
     if (!profile) return
+    setRateTouched(true)
+    if (hourlyRate < 500) return
     setSavingRate(true)
     try {
       await api.patch('/companions/me/profile', { hourlyRatePaisa: hourlyRate * 100 })
       setProfile(p => p ? { ...p, hourlyRatePaisa: hourlyRate * 100 } : p)
       setEditingRate(false)
-    } catch {} finally { setSavingRate(false) }
+      toast('success', 'Rate updated')
+    } catch {
+      toast('error', "Couldn't save changes")
+    } finally { setSavingRate(false) }
   }
 
   async function saveServices() {
@@ -194,7 +246,10 @@ export default function CompanionAccount() {
       await api.patch('/companions/me/profile', { services: draftServices })
       setServices(draftServices)
       setEditingServices(false)
-    } catch {} finally { setSavingServices(false) }
+      toast('success', 'Services updated')
+    } catch {
+      toast('error', "Couldn't save changes")
+    } finally { setSavingServices(false) }
   }
 
   async function saveAvailability() {
@@ -208,7 +263,10 @@ export default function CompanionAccount() {
       await api.put('/companions/me/availability', { slots })
       setAvailabilitySlots(slots)
       setEditingAvailability(false)
-    } catch {} finally { setSavingAvailability(false) }
+      toast('success', 'Availability saved')
+    } catch {
+      toast('error', "Couldn't save changes")
+    } finally { setSavingAvailability(false) }
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -224,7 +282,10 @@ export default function CompanionAccount() {
       })
       await api.patch('/companions/me/profile', { profilePhotoUrl: uploadRes.data.url })
       setProfile(p => p ? { ...p, profilePhotoUrl: uploadRes.data.url } : p)
-    } catch {} finally { setPhotoUploading(false) }
+      toast('success', 'Photo updated')
+    } catch {
+      toast('error', "Couldn't save changes")
+    } finally { setPhotoUploading(false) }
   }
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -311,13 +372,18 @@ export default function CompanionAccount() {
                   <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic" className="hidden" onChange={handlePhotoUpload} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <p className="text-[18px] font-bold text-[var(--color-dark)]">{profile?.displayName ?? '—'}</p>
-                    {profile?.profileStatus === 'active' && (
-                      <span className="flex items-center gap-0.5 text-[10px] font-semibold text-[var(--color-success)] bg-[var(--color-success-bg)] px-2 py-0.5 rounded-full">
-                        <IconShieldCheck size={10} stroke={2} /> Verified
-                      </span>
-                    )}
+                    {profile?.profileStatus && (() => {
+                      const cfg = PROFILE_STATUS_CONFIG[profile.profileStatus]
+                      if (!cfg) return null
+                      return (
+                        <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg.badge} ${cfg.badgeBg}`}>
+                          {cfg.icon && <span className="w-3 h-3 flex items-center">{cfg.icon}</span>}
+                          {cfg.label}
+                        </span>
+                      )
+                    })()}
                   </div>
                   <div className="flex items-center gap-3 text-[12px] text-[var(--color-gray)]">
                     <span className="flex items-center gap-1"><IconMapPin size={11} stroke={1.5} /> Delhi NCR</span>
@@ -329,11 +395,28 @@ export default function CompanionAccount() {
                     )}
                   </div>
                   <p className="text-[11px] text-[var(--color-amber)] font-medium mt-1.5">
-                    ₹{Math.round((profile?.hourlyRatePaisa ?? 0) / 100).toLocaleString()}/hr · Active companion
+                    ₹{Math.round((profile?.hourlyRatePaisa ?? 0) / 100).toLocaleString()}/hr
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* Profile status banner */}
+            {profile?.profileStatus && (() => {
+              const cfg = PROFILE_STATUS_CONFIG[profile.profileStatus]
+              if (!cfg) return null
+              return (
+                <div className={`rounded-[12px] border px-4 py-3 flex items-start gap-3 ${cfg.bannerBg} ${cfg.bannerBorder}`}>
+                  <span className={`mt-0.5 flex-shrink-0 ${cfg.bannerText}`}>{cfg.icon}</span>
+                  <div>
+                    <p className={`text-[13px] font-semibold ${cfg.bannerText}`}>
+                      {cfg.visible ? 'Profile is live' : `Profile ${cfg.label.toLowerCase()}`}
+                    </p>
+                    <p className={`text-[12px] mt-0.5 ${cfg.bannerText} opacity-80`}>{cfg.detail}</p>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Bio */}
             <div className="bg-white rounded-[16px] border border-[var(--color-border)] p-5">
@@ -380,7 +463,7 @@ export default function CompanionAccount() {
                 </div>
                 {editingRate ? (
                   <div className="flex items-center gap-2">
-                    <button onClick={() => { setEditingRate(false); setHourlyRate(Math.round((profile?.hourlyRatePaisa ?? 0) / 100)) }} className="text-[12px] text-[var(--color-gray)]">Cancel</button>
+                    <button onClick={() => { setEditingRate(false); setRateTouched(false); setHourlyRate(Math.round((profile?.hourlyRatePaisa ?? 0) / 100)) }} className="text-[12px] text-[var(--color-gray)]">Cancel</button>
                     <button onClick={saveRate} disabled={savingRate} className="text-[12px] text-[var(--color-amber)] font-semibold disabled:opacity-50">
                       {savingRate ? 'Saving…' : 'Save'}
                     </button>
@@ -392,15 +475,25 @@ export default function CompanionAccount() {
                 )}
               </div>
               {editingRate ? (
-                <div className="relative w-40">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-[var(--color-gray)]">₹</span>
-                  <input
-                    type="number"
-                    value={hourlyRate}
-                    min={500}
-                    onChange={e => setHourlyRate(Number(e.target.value))}
-                    className="w-full h-11 pl-7 pr-3 rounded-[10px] border border-[var(--color-amber)] text-[15px] font-bold text-[var(--color-dark)] focus:outline-none"
-                  />
+                <div>
+                  <div className="relative w-40">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-[var(--color-gray)]">₹</span>
+                    <input
+                      type="number"
+                      value={hourlyRate}
+                      min={500}
+                      onChange={e => setHourlyRate(Number(e.target.value))}
+                      onBlur={() => setRateTouched(true)}
+                      className={`w-full h-11 pl-7 pr-3 rounded-[10px] border text-[15px] font-bold text-[var(--color-dark)] focus:outline-none ${
+                        rateTouched && hourlyRate < 500 ? 'border-[var(--color-error)]' : 'border-[var(--color-amber)]'
+                      }`}
+                    />
+                  </div>
+                  {rateTouched && hourlyRate < 500 && (
+                    <p className="text-[11px] text-[var(--color-error)] mt-1 flex items-center gap-1">
+                      <IconAlertCircle size={11} />Minimum rate is ₹500/hr
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className="text-[28px] font-black text-[var(--color-dark)]">

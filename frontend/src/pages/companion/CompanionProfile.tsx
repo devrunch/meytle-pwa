@@ -1,480 +1,340 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  IconArrowLeft, IconStar, IconMapPin, IconShieldCheck, IconShare,
-  IconHeart, IconClock, IconCheck, IconCalendar, IconMessageCircle,
-  IconChevronRight,
-} from '@tabler/icons-react'
-import { api } from '../../lib/api'
+  IconArrowLeft, IconCamera, IconLoader2, IconCheck, IconX,
+  IconUser, IconFileText, IconLayoutGrid, IconCurrencyRupee,
+  IconMapPin, IconStar,
+  IconCoffee, IconToolsKitchen2, IconMusic, IconPlane, IconRun,
+  IconPalette, IconLeaf, IconMovie, IconShoppingBag, IconDeviceGamepad,
+} from '@tabler/icons-react';
+import toast from 'react-hot-toast';
+import { client } from '../../api/client';
+import type { ServiceType, CompanionProfile } from '../../types';
 
-interface ApiProfile {
-  id: string
-  displayName: string
-  bio: string
-  dateOfBirth: string
-  profilePhotoUrl: string
-  hourlyRatePaisa: number
-  ratingAvg: number | null
-  ratingCount: number
-  isAvailableNow: boolean
-  serviceAreaRadiusKm: number
-  profileStatus: string
-}
+// ── Constants ──────────────────────────────────────────────────────────────────
 
-interface ApiService {
-  id: string
-  serviceType: string
-}
+const SERVICES: { value: ServiceType; label: string; icon: React.ElementType }[] = [
+  { value: 'coffee',   label: 'Coffee',   icon: IconCoffee },
+  { value: 'dining',   label: 'Dining',   icon: IconToolsKitchen2 },
+  { value: 'concert',  label: 'Concerts', icon: IconMusic },
+  { value: 'travel',   label: 'Travel',   icon: IconPlane },
+  { value: 'fitness',  label: 'Fitness',  icon: IconRun },
+  { value: 'culture',  label: 'Culture',  icon: IconPalette },
+  { value: 'nature',   label: 'Nature',   icon: IconLeaf },
+  { value: 'movies',   label: 'Movies',   icon: IconMovie },
+  { value: 'shopping', label: 'Shopping', icon: IconShoppingBag },
+  { value: 'gaming',   label: 'Gaming',   icon: IconDeviceGamepad },
+];
 
-interface ApiReview {
-  id: string
-  starRating: number
-  comment: string
-  createdAt: string
-  reviewer?: { fullName: string }
-}
+const RATE_PRESETS = [500, 800, 1000, 1500, 2000];
+const RADIUS_OPTIONS = [5, 10, 15, 20, 30, 50];
 
-const SERVICE_LABELS: Record<string, string> = {
-  coffee: 'Coffee Dates',
-  dining: 'Fine Dining',
-  concert: 'Concerts',
-  travel: 'Travel',
-  fitness: 'Fitness',
-  culture: 'Cultural Events',
-  nature: 'Nature Walks',
-  movies: 'Movies',
-  shopping: 'Shopping',
-  gaming: 'Gaming',
-}
+// ── Section wrapper ────────────────────────────────────────────────────────────
 
-function calcAge(dob: string): number {
-  const birth = new Date(dob)
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  if (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate())) age--
-  return age
-}
-
-function StarRow({ rating, size = 13 }: { rating: number; size?: number }) {
+function Section({ icon: Icon, title, children }: {
+  icon: React.ElementType; title: string; children: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map(i => (
-        <IconStar
-          key={i}
-          size={size}
-          stroke={0}
-          fill={i <= rating ? 'var(--color-amber)' : '#E8E4DC'}
-          color={i <= rating ? 'var(--color-amber)' : '#E8E4DC'}
-        />
-      ))}
+    <div className="bg-white rounded-2xl border border-black/[0.06] shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-black/[0.05]"
+        style={{ background: 'linear-gradient(135deg,#F7FBFA,#F6FAFF)' }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+          <Icon size={15} className="text-white" />
+        </div>
+        <p className="text-sm font-bold text-heading">{title}</p>
+      </div>
+      <div className="p-5">{children}</div>
     </div>
-  )
+  );
 }
 
-const EXTRA_PHOTOS = [
-  'https://images.unsplash.com/photo-1521566652839-697aa473761a?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop',
-]
+// ── Main page ──────────────────────────────────────────────────────────────────
 
-export default function CompanionProfile() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const [profile, setProfile] = useState<ApiProfile | null>(null)
-  const [services, setServices] = useState<ApiService[]>([])
-  const [reviews, setReviews] = useState<ApiReview[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saved, setSaved] = useState(false)
-  const [selectedService, setSelectedService] = useState<string | null>(null)
+export function CompanionProfilePage() {
+  const navigate = useNavigate();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const [displayName, setDisplayName]   = useState('');
+  const [bio, setBio]                   = useState('');
+  const [profilePhotoUrl, setPhotoUrl]  = useState('');
+  const [services, setServices]         = useState<ServiceType[]>([]);
+  const [hourlyRate, setHourlyRate]     = useState(1000);
+  const [radiusKm, setRadiusKm]         = useState(10);
+  const [areaLabel, setAreaLabel]       = useState('');
 
   useEffect(() => {
-    if (!id) return
-    Promise.all([
-      api.get<ApiProfile>(`/companions/${id}`),
-      api.get<ApiService[]>(`/companions/${id}/services`),
-      api.get<ApiReview[]>(`/reviews/companion/${id}`),
-    ])
-      .then(([p, s, r]) => {
-        setProfile(p.data)
-        setServices(s.data)
-        setReviews(r.data)
+    client.get<CompanionProfile>('/companions/me/profile')
+      .then(({ data: p }) => {
+        setDisplayName(p.displayName ?? '');
+        setBio(p.bio ?? '');
+        setPhotoUrl(p.profilePhotoUrl ?? '');
+        setServices((p.services ?? []).map((s) => s.serviceType));
+        setHourlyRate(Math.round((p.hourlyRatePaisa ?? 100000) / 100));
+        setRadiusKm(p.serviceAreaRadiusKm ?? 10);
+        // Parse area label from EWKT if present
+        if (p.serviceAreaCentre) {
+          setAreaLabel('Current area');
+        }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [id])
+      .catch(() => toast.error('Could not load profile'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleService = (v: ServiceType) => {
+    setServices((prev) => prev.includes(v) ? prev.filter((s) => s !== v) : [...prev, v]);
+  };
+
+  const handlePhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const { data } = await client.post<{ url: string }>('/uploads/photo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPhotoUrl(data.url);
+      toast.success('Photo updated!');
+    } catch {
+      toast.error('Upload failed, try again');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const handleSave = async () => {
+    if (!displayName.trim()) { toast.error('Display name is required'); return; }
+    if (services.length === 0) { toast.error('Select at least one service'); return; }
+    if (hourlyRate < 500) { toast.error('Minimum rate is ₹500/hr'); return; }
+
+    setSaving(true);
+    try {
+      await client.patch('/companions/me/profile', {
+        displayName:         displayName.trim(),
+        bio:                 bio.trim() || undefined,
+        profilePhotoUrl:     profilePhotoUrl || undefined,
+        hourlyRatePaisa:     hourlyRate * 100,
+        serviceAreaRadiusKm: radiusKm,
+        services,
+      });
+      toast.success('Profile updated!');
+      navigate('/companion/dashboard');
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(typeof msg === 'string' ? msg : 'Could not save changes');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--color-bg)] animate-pulse">
-        <div className="hidden md:block border-b bg-white h-[52px]" />
-        <div className="hidden md:block max-w-[1180px] mx-auto px-6 pt-6">
-          <div className="h-[400px] rounded-[16px] bg-[var(--color-gray-light)]" />
-        </div>
-        <div className="max-w-[1180px] mx-auto px-4 py-6 flex gap-8">
-          <div className="flex-1 flex flex-col gap-4">
-            <div className="h-16 rounded-[12px] bg-white border border-[var(--color-border)]" />
-            <div className="h-40 rounded-[12px] bg-white border border-[var(--color-border)]" />
-          </div>
-          <div className="hidden md:block w-[340px] h-[400px] rounded-[20px] bg-white border border-[var(--color-border)]" />
-        </div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <IconLoader2 size={32} className="animate-spin text-teal-500" />
       </div>
-    )
-  }
-
-  if (!profile) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-        <p className="text-[15px] text-[var(--color-dark)]">Companion not found</p>
-        <button onClick={() => navigate('/app')} className="mt-3 text-[var(--color-amber)] text-[13px]">Go back</button>
-      </div>
-    )
-  }
-
-  const age = calcAge(profile.dateOfBirth)
-  const rating = profile.ratingAvg ?? 0
-  const pricePerHr = Math.round(profile.hourlyRatePaisa / 100)
-  const activeService = selectedService ?? services[0]?.serviceType ?? null
-  const isVerified = profile.profileStatus === 'active'
-
-  function bookNow() {
-    const params = activeService ? `?service=${activeService}` : ''
-    navigate(`/app/bookings/new/${profile!.id}${params}`)
+    );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)]">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
 
-      {/* Desktop breadcrumb */}
-      <div className="hidden md:block border-b border-[var(--color-border)] bg-white">
-        <div className="max-w-[1180px] mx-auto px-6 lg:px-10 h-[52px] flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-[13px] text-[var(--color-gray)] hover:text-[var(--color-dark)] transition-colors"
-          >
-            <IconArrowLeft size={15} stroke={1.5} />
-            Back to results
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSaved(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-[var(--color-border)] text-[12px] font-medium text-[var(--color-gray)] hover:border-[var(--color-amber)] hover:text-[var(--color-amber)] transition-colors"
-            >
-              <IconHeart size={14} stroke={1.5} className={saved ? 'fill-[var(--color-amber)] text-[var(--color-amber)]' : ''} />
-              {saved ? 'Saved' : 'Save'}
-            </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-[var(--color-border)] text-[12px] font-medium text-[var(--color-gray)] hover:border-[var(--color-dark)] hover:text-[var(--color-dark)] transition-colors">
-              <IconShare size={14} stroke={1.5} />
-              Share
-            </button>
-          </div>
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/companion/dashboard')}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-muted hover:bg-black/[0.04] hover:text-body transition-colors">
+          <IconArrowLeft size={18} />
+        </button>
+        <div>
+          <h1 className="text-lg font-extrabold text-heading leading-tight">Edit Profile</h1>
+          <p className="text-xs text-muted">Changes are visible to clients immediately after saving</p>
         </div>
       </div>
 
-      {/* Mobile hero */}
-      <div className="md:hidden relative h-[320px] bg-[var(--color-gray-light)]">
-        {profile.profilePhotoUrl && (
-          <img src={profile.profilePhotoUrl} alt={profile.displayName} className="w-full h-full object-cover" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow"
-          >
-            <IconArrowLeft size={18} stroke={1.5} className="text-[var(--color-dark)]" />
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSaved(v => !v)}
-              className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow"
-            >
-              <IconHeart size={17} stroke={1.5} className={saved ? 'fill-[var(--color-amber)] text-[var(--color-amber)]' : 'text-[var(--color-dark)]'} />
-            </button>
-            <button className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow">
-              <IconShare size={17} stroke={1.5} className="text-[var(--color-dark)]" />
-            </button>
-          </div>
-        </div>
-        {profile.isAvailableNow && (
-          <div className="absolute bottom-4 left-4">
-            <div className="flex items-center gap-1.5 bg-white/95 rounded-full px-3 py-1.5 shadow">
-              <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)]" />
-              <span className="text-[11px] font-semibold text-[var(--color-success)]">Available now</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Desktop photo grid */}
-      <div className="hidden md:block max-w-[1180px] mx-auto px-6 lg:px-10 pt-6">
-        <div className="grid grid-cols-4 grid-rows-2 gap-2 h-[400px] rounded-[16px] overflow-hidden">
-          <div className="col-span-2 row-span-2 relative bg-[var(--color-gray-light)]">
-            {profile.profilePhotoUrl && (
-              <img src={profile.profilePhotoUrl} alt={profile.displayName} className="w-full h-full object-cover" />
-            )}
-            {profile.isAvailableNow && (
-              <div className="absolute bottom-3 left-3">
-                <div className="flex items-center gap-1.5 bg-white/95 rounded-full px-3 py-1.5 shadow">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)]" />
-                  <span className="text-[11px] font-semibold text-[var(--color-success)]">Available now</span>
-                </div>
-              </div>
-            )}
-          </div>
-          {EXTRA_PHOTOS.map((url, i) => (
-            <div key={i} className="relative bg-[var(--color-gray-light)] overflow-hidden">
-              <img src={url} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
-              {i === 3 && (
-                <button className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[13px] font-semibold hover:bg-black/50 transition-colors">
-                  Show all photos
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Main layout */}
-      <div className="max-w-[1180px] mx-auto px-4 md:px-6 lg:px-10 py-6 md:py-8">
-        <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-start">
-
-          {/* LEFT COLUMN */}
-          <div className="flex-1 min-w-0">
-
-            {/* Name + meta */}
-            <div className="flex items-start justify-between gap-3 mb-4 pb-5 border-b border-[var(--color-border)]">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <h1 className="text-[26px] md:text-[30px] font-bold text-[var(--color-dark)]">{profile.displayName}</h1>
-                  <span className="text-[18px] text-[var(--color-gray)] font-light">{age}</span>
-                  {isVerified && (
-                    <div className="flex items-center gap-1 bg-[var(--color-success-bg)] rounded-full px-2.5 py-1">
-                      <IconShieldCheck size={12} stroke={1.5} className="text-[var(--color-success)]" />
-                      <span className="text-[11px] font-semibold text-[var(--color-success)]">Verified</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <IconMapPin size={13} stroke={1.5} className="text-[var(--color-gray)]" />
-                  <span className="text-[14px] text-[var(--color-gray)]">Delhi NCR · {profile.serviceAreaRadiusKm} km radius</span>
-                </div>
-              </div>
-              <div className="md:hidden flex items-center gap-1 bg-[var(--color-amber-light)] rounded-[8px] px-3 py-2 flex-shrink-0">
-                <IconStar size={14} stroke={0} fill="var(--color-amber)" color="var(--color-amber)" />
-                <span className="text-[14px] font-bold text-[var(--color-amber-dark)]">{rating > 0 ? rating.toFixed(1) : '—'}</span>
-                <span className="text-[11px] text-[var(--color-amber)]">({profile.ratingCount})</span>
-              </div>
-            </div>
-
-            {/* Quick stats */}
-            <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-[var(--color-border)]">
-              {[
-                { icon: <IconStar size={18} stroke={1.5} className="text-[var(--color-amber)]" />, value: rating > 0 ? rating.toFixed(1) : '—', label: 'Rating' },
-                { icon: <IconCalendar size={18} stroke={1.5} className="text-[var(--color-amber)]" />, value: `${profile.ratingCount}`, label: 'Reviews' },
-                { icon: <IconClock size={18} stroke={1.5} className="text-[var(--color-amber)]" />, value: `₹${pricePerHr.toLocaleString()}`, label: '/ hr' },
-              ].map(stat => (
-                <div key={stat.label} className="flex flex-col items-center gap-1 bg-white rounded-[12px] border border-[var(--color-border)] py-3 px-2">
-                  {stat.icon}
-                  <p className="text-[16px] font-bold text-[var(--color-dark)]">{stat.value}</p>
-                  <p className="text-[10px] text-[var(--color-gray)]">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Bio */}
-            {profile.bio && (
-              <div className="mb-6 pb-6 border-b border-[var(--color-border)]">
-                <h2 className="text-[16px] font-semibold text-[var(--color-dark)] mb-2">About {profile.displayName}</h2>
-                <p className="text-[14px] text-[var(--color-gray)] leading-[1.7]">{profile.bio}</p>
-              </div>
-            )}
-
-            {/* Services */}
-            {services.length > 0 && (
-              <div className="mb-6 pb-6 border-b border-[var(--color-border)]">
-                <div className="flex items-baseline gap-2 mb-3">
-                  <h2 className="text-[16px] font-semibold text-[var(--color-dark)]">Services</h2>
-                  <span className="text-[13px] text-[var(--color-gray)]">· ₹{pricePerHr.toLocaleString()} / hr for all</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {services.map(svc => (
-                    <div
-                      key={svc.id}
-                      className="flex items-center gap-3 bg-white rounded-[12px] border border-[var(--color-border)] px-4 py-3.5 hover:border-[var(--color-amber)] transition-colors cursor-pointer"
-                    >
-                      <div className="w-9 h-9 rounded-[10px] bg-[var(--color-amber-light)] flex items-center justify-center flex-shrink-0">
-                        <IconClock size={16} stroke={1.5} className="text-[var(--color-amber)]" />
-                      </div>
-                      <p className="text-[13px] font-semibold text-[var(--color-dark)]">{SERVICE_LABELS[svc.serviceType] ?? svc.serviceType}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Reviews */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[16px] font-semibold text-[var(--color-dark)]">Reviews</h2>
-                  {rating > 0 && <StarRow rating={Math.round(rating)} size={14} />}
-                  <span className="text-[13px] font-semibold text-[var(--color-dark)]">{rating > 0 ? rating.toFixed(1) : '—'}</span>
-                  <span className="text-[13px] text-[var(--color-gray)]">· {profile.ratingCount} reviews</span>
-                </div>
-              </div>
-              {reviews.length === 0 ? (
-                <p className="text-[13px] text-[var(--color-gray)]">No reviews yet.</p>
+      {/* Photo */}
+      <Section icon={IconCamera} title="Profile Photo">
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoFile} />
+        <div className="flex items-center gap-5">
+          <button onClick={() => fileRef.current?.click()} disabled={uploading} className="group relative flex-shrink-0">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-dashed border-border group-hover:border-accent-green/50 transition-colors">
+              {profilePhotoUrl ? (
+                <img src={profilePhotoUrl} alt="" className="w-full h-full object-cover" />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {reviews.map(review => {
-                    const name = review.reviewer?.fullName ?? 'User'
-                    const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
-                    const date = new Date(review.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
-                    return (
-                      <div key={review.id} className="bg-white rounded-[14px] border border-[var(--color-border)] p-4">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-9 h-9 rounded-full bg-[var(--color-amber-light)] flex items-center justify-center flex-shrink-0">
-                            <span className="text-[11px] font-bold text-[var(--color-amber-dark)]">{initials}</span>
-                          </div>
-                          <div>
-                            <p className="text-[13px] font-semibold text-[var(--color-dark)]">{name.split(' ')[0]} {name.split(' ')[1]?.[0]}.</p>
-                            <div className="flex items-center gap-1.5">
-                              <StarRow rating={review.starRating} size={11} />
-                              <span className="text-[10px] text-[var(--color-gray)]">{date}</span>
-                            </div>
-                          </div>
-                        </div>
-                        {review.comment && (
-                          <p className="text-[13px] text-[var(--color-gray)] leading-relaxed">{review.comment}</p>
-                        )}
-                      </div>
-                    )
-                  })}
+                <div className="w-full h-full flex items-center justify-center bg-surface-alt">
+                  {uploading
+                    ? <IconLoader2 size={22} className="text-accent-green animate-spin" />
+                    : <IconCamera size={22} className="text-muted group-hover:text-accent-green transition-colors" />}
                 </div>
               )}
-              {profile.ratingCount > reviews.length && (
-                <button className="mt-4 text-[13px] font-medium text-[var(--color-amber)] flex items-center gap-1 hover:underline">
-                  See all {profile.ratingCount} reviews <IconChevronRight size={13} stroke={2} />
+              {profilePhotoUrl && (
+                <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <IconCamera size={18} className="text-white" />
+                </div>
+              )}
+            </div>
+          </button>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-heading mb-1">
+              {profilePhotoUrl ? 'Looking good!' : 'Add a photo'}
+            </p>
+            <p className="text-xs text-muted mb-3">Profiles with photos get 3× more bookings</p>
+            <div className="flex gap-2">
+              <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+                {uploading ? 'Uploading…' : profilePhotoUrl ? 'Change' : 'Upload'}
+              </button>
+              {profilePhotoUrl && (
+                <button onClick={() => setPhotoUrl('')}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-border text-muted hover:text-red-500 hover:border-red-300 transition-colors flex items-center gap-1">
+                  <IconX size={11} /> Remove
                 </button>
               )}
             </div>
-
           </div>
-
-          {/* RIGHT COLUMN — Booking panel */}
-          <div className="hidden md:block w-[340px] flex-shrink-0">
-            <div className="sticky top-[76px]">
-              <div className="bg-white rounded-[20px] border border-[var(--color-border)] shadow-[0_4px_24px_rgba(0,0,0,0.08)] overflow-hidden">
-
-                <div className="px-6 pt-6 pb-4 border-b border-[var(--color-border)]">
-                  <div className="flex items-center justify-between mb-1">
-                    <div>
-                      <span className="text-[24px] font-bold text-[var(--color-dark)]">₹{pricePerHr.toLocaleString()}</span>
-                      <span className="text-[13px] text-[var(--color-gray)] ml-1">/ hr</span>
-                    </div>
-                    {rating > 0 && (
-                      <div className="flex items-center gap-1.5 bg-[var(--color-amber-light)] rounded-[8px] px-2.5 py-1.5">
-                        <IconStar size={13} stroke={0} fill="var(--color-amber)" color="var(--color-amber)" />
-                        <span className="text-[13px] font-bold text-[var(--color-amber-dark)]">{rating.toFixed(1)}</span>
-                        <span className="text-[11px] text-[var(--color-amber)]">({profile.ratingCount})</span>
-                      </div>
-                    )}
-                  </div>
-                  {profile.isAvailableNow && (
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)]" />
-                      <span className="text-[12px] font-medium text-[var(--color-success)]">Available now</span>
-                    </div>
-                  )}
-                </div>
-
-                {services.length > 0 && (
-                  <div className="px-6 py-4 border-b border-[var(--color-border)]">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-gray)] mb-3">Select a service</p>
-                    <div className="flex flex-col gap-2">
-                      {services.map(svc => {
-                        const isActive = activeService === svc.serviceType
-                        return (
-                          <button
-                            key={svc.id}
-                            onClick={() => setSelectedService(svc.serviceType)}
-                            className={`flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors border ${
-                              isActive
-                                ? 'border-[var(--color-amber)] bg-[var(--color-amber-light)]'
-                                : 'border-[var(--color-border)] hover:border-[var(--color-amber)]'
-                            }`}
-                          >
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isActive ? 'border-[var(--color-amber)] bg-[var(--color-amber)]' : 'border-[var(--color-border)]'
-                            }`}>
-                              {isActive && <IconCheck size={9} stroke={3} color="white" />}
-                            </div>
-                            <span className={`text-[13px] font-medium ${isActive ? 'text-[var(--color-amber-dark)]' : 'text-[var(--color-dark)]'}`}>
-                              {SERVICE_LABELS[svc.serviceType] ?? svc.serviceType}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div className="px-6 py-5">
-                  <button
-                    onClick={bookNow}
-                    className="btn-gradient-primary w-full h-12 rounded-[12px] text-white text-[14px] font-semibold shadow-[0_2px_12px_rgba(0,212,170,0.45)] hover:opacity-90 transition-opacity mb-3"
-                  >
-                    Book Now
-                  </button>
-                  <button
-                    onClick={() => navigate('/app/messages')}
-                    className="w-full h-11 rounded-[12px] border border-[var(--color-border)] text-[13px] font-medium text-[var(--color-dark)] hover:border-[var(--color-amber)] hover:text-[var(--color-amber)] transition-colors flex items-center justify-center gap-2"
-                  >
-                    <IconMessageCircle size={15} stroke={1.5} />
-                    Message {profile.displayName}
-                  </button>
-                  <p className="text-center text-[11px] text-[var(--color-gray)] mt-3">
-                    You won't be charged until {profile.displayName} accepts
-                  </p>
-                </div>
-
-                <div className="px-6 pb-5">
-                  <div className="flex items-center gap-2 bg-[var(--color-gray-light)] rounded-[10px] px-3 py-2.5">
-                    <IconShieldCheck size={15} stroke={1.5} className="text-[var(--color-success)] flex-shrink-0" />
-                    <p className="text-[11px] text-[var(--color-gray)]">
-                      {isVerified ? 'Identity & background verified by Meytle' : 'Verification pending'}
-                    </p>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </div>
-
         </div>
-      </div>
+      </Section>
 
-      {/* Mobile sticky footer */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--color-border)] px-4 py-3 z-30">
-        <div className="flex items-center gap-3">
+      {/* Basic info */}
+      <Section icon={IconUser} title="Basic Info">
+        <div className="space-y-4">
           <div>
-            <p className="text-[10px] text-[var(--color-gray)]">Hourly rate</p>
-            <p className="text-[17px] font-bold text-[var(--color-dark)]">
-              ₹{pricePerHr.toLocaleString()}
-              <span className="text-[12px] font-normal text-[var(--color-gray)]">/hr</span>
+            <label className="text-xs font-semibold text-muted uppercase tracking-wide mb-1.5 block">Display Name</label>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              maxLength={40}
+              placeholder="Your name or alias"
+              className="w-full text-sm font-semibold text-heading bg-surface-alt border-2 border-border rounded-xl px-4 py-3 outline-none placeholder:text-muted/40 focus:border-accent-green/60 focus:ring-4 focus:ring-accent-green/10 transition-all"
+            />
+            {displayName && (
+              <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-surface-mint border border-border rounded-xl">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                  style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+                  {displayName[0].toUpperCase()}
+                </div>
+                <p className="text-xs text-muted">Shows as <span className="text-heading font-semibold">{displayName}</span> on your card</p>
+                <IconStar size={11} className="ml-auto text-yellow-400 fill-yellow-400" />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted uppercase tracking-wide mb-1.5 block">Bio</label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              maxLength={300}
+              rows={4}
+              placeholder="Tell clients a bit about yourself…"
+              className="w-full text-sm text-body bg-surface-alt border-2 border-border rounded-xl px-4 py-3 outline-none placeholder:text-muted/40 focus:border-accent-green/60 focus:ring-4 focus:ring-accent-green/10 transition-all resize-none leading-relaxed"
+            />
+            <p className={`text-right text-[11px] mt-1 font-medium ${bio.length > 260 ? 'text-amber-500' : 'text-muted'}`}>
+              {bio.length}/300
             </p>
           </div>
-          <button
-            onClick={bookNow}
-            className="btn-gradient-primary flex-1 h-11 rounded-[12px] text-white text-[14px] font-semibold"
-          >
-            Book Now
-          </button>
         </div>
-      </div>
-      <div className="md:hidden h-20" />
+      </Section>
 
+      {/* Services */}
+      <Section icon={IconLayoutGrid} title="Services Offered">
+        <div className="grid grid-cols-2 gap-2">
+          {SERVICES.map(({ value, label, icon: Icon }) => {
+            const active = services.includes(value);
+            return (
+              <button key={value} onClick={() => toggleService(value)}
+                className={`relative flex items-center gap-2.5 p-3 rounded-xl border-2 text-left transition-all ${
+                  active ? 'border-transparent shadow-sm' : 'border-border bg-surface hover:border-accent-green/30'
+                }`}
+                style={active ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+                <Icon size={16} className={`shrink-0 ${active ? 'text-white' : 'text-muted'}`} />
+                <span className={`text-sm font-semibold ${active ? 'text-white' : 'text-heading'}`}>{label}</span>
+                {active && (
+                  <div className="absolute top-2 right-2 w-3.5 h-3.5 rounded-full bg-white/30 flex items-center justify-center">
+                    <IconCheck size={9} className="text-white" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {services.length > 0 && (
+          <p className="text-center text-xs text-accent-green font-semibold mt-3">
+            {services.length} experience{services.length > 1 ? 's' : ''} selected
+          </p>
+        )}
+      </Section>
+
+      {/* Rate */}
+      <Section icon={IconCurrencyRupee} title="Hourly Rate">
+        <div className="text-center mb-5">
+          <div className="inline-flex items-center gap-1">
+            <span className="text-2xl font-bold text-muted">₹</span>
+            <input
+              type="number"
+              value={hourlyRate}
+              min={500}
+              max={10000}
+              onChange={(e) => setHourlyRate(Math.max(500, +e.target.value || 500))}
+              className="text-4xl font-extrabold text-heading w-32 text-center bg-transparent outline-none border-b-2 border-border focus:border-accent-green/60 transition-colors [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <span className="text-lg text-muted self-end mb-1">/hr</span>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-center flex-wrap">
+          {RATE_PRESETS.map((r) => (
+            <button key={r} onClick={() => setHourlyRate(r)}
+              className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+                hourlyRate === r ? 'text-white border-transparent' : 'border-border text-muted hover:border-accent-green/40'
+              }`}
+              style={hourlyRate === r ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+              ₹{r.toLocaleString('en-IN')}
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      {/* Service area */}
+      <Section icon={IconMapPin} title="Service Area">
+        <div>
+          <p className="text-xs text-muted mb-3">
+            Clients within your radius can discover and book you.
+            {areaLabel && <span className="text-heading font-medium"> Currently: {areaLabel}.</span>}
+          </p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Radius</p>
+          <div className="flex gap-2 flex-wrap">
+            {RADIUS_OPTIONS.map((r) => (
+              <button key={r} onClick={() => setRadiusKm(r)}
+                className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+                  radiusKm === r ? 'text-white border-transparent' : 'border-border text-muted hover:border-accent-green/40'
+                }`}
+                style={radiusKm === r ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+                {r} km
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted mt-3">
+            To change your city or service zones, go through the companion onboarding again.
+          </p>
+        </div>
+      </Section>
+
+      {/* Save */}
+      <div className="pb-6">
+        <button onClick={handleSave} disabled={saving}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-bold text-sm shadow-lg hover:opacity-90 disabled:opacity-60 active:scale-95 transition-all"
+          style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
+          {saving
+            ? <><IconLoader2 size={16} className="animate-spin" /> Saving…</>
+            : <><IconCheck size={16} /> Save Changes</>}
+        </button>
+      </div>
     </div>
-  )
+  );
 }

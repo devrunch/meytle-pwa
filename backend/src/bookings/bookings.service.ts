@@ -38,7 +38,6 @@ export class BookingsService {
       bookedStart,
       bookedEnd,
       bookedDurationMinutes: dto.bookedDurationMinutes,
-      meetingSpot: `SRID=4326;POINT(${lng} ${lat})`,
       meetingSpotText: dto.meetingSpotText,
       isCustomRequest: dto.isCustomRequest ?? false,
       customNote: dto.customNote,
@@ -49,7 +48,15 @@ export class BookingsService {
     // TODO: create Stripe Payment Intent here and set stripePaymentIntentId
     // booking.stripePaymentIntentId = await this.stripe.createPaymentIntent(...)
 
-    return this.bookings.save(booking);
+    await this.bookings.save(booking);
+
+    // Set geography column via raw SQL — TypeORM wraps saves with ST_GeomFromGeoJSON which rejects EWKT
+    await this.dataSource.query(
+      `UPDATE bookings SET meeting_spot = ST_GeomFromEWKT($1) WHERE id = $2`,
+      [`SRID=4326;POINT(${lng} ${lat})`, booking.id],
+    );
+
+    return booking;
   }
 
   async findForUser(userId: string): Promise<Booking[]> {
@@ -71,6 +78,15 @@ export class BookingsService {
     });
   }
 
+  private async attachMeetingSpotEwkt(booking: Booking): Promise<Booking> {
+    const [row] = await this.dataSource.query(
+      `SELECT ST_AsEWKT(meeting_spot::geometry) AS ewkt FROM bookings WHERE id = $1`,
+      [booking.id],
+    );
+    booking.meetingSpot = row?.ewkt ?? null;
+    return booking;
+  }
+
   async findById(id: string, requesterId: string): Promise<Booking> {
     const booking = await this.bookings.findOne({
       where: { id },
@@ -78,7 +94,7 @@ export class BookingsService {
     });
     if (!booking) throw new NotFoundException('Booking not found');
     this.assertParticipant(booking, requesterId);
-    return booking;
+    return this.attachMeetingSpotEwkt(booking);
   }
 
   async acceptByCompanion(bookingId: string, userId: string): Promise<Booking> {

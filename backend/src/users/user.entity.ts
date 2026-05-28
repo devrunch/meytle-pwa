@@ -28,6 +28,21 @@ export class User {
   @Column({ name: 'full_name' })
   fullName: string;
 
+  @Column({ name: 'avatar_url', nullable: true, type: 'text' })
+  avatarUrl: string | null;
+
+  @Column({ name: 'date_of_birth', nullable: true, type: 'date' })
+  dateOfBirth: string | null;
+
+  @Column({ nullable: true, type: 'text' })
+  bio: string | null;
+
+  @Column({ type: 'jsonb', nullable: true, default: null })
+  interests: string[] | null;
+
+  @Column({ type: 'jsonb', nullable: true, default: null })
+  photos: string[] | null;
+
   @Column({
     type: 'enum',
     enum: UserRole,

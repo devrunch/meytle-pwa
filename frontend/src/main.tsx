@@ -1,12 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import '@fontsource/nunito/400.css'
-import '@fontsource/nunito/500.css'
-import '@fontsource/nunito/600.css'
-import '@fontsource/nunito/700.css'
-import '@fontsource/nunito/800.css'
-import '@fontsource/caudex/400.css'
-import '@fontsource/caudex/700.css'
+import 'leaflet/dist/leaflet.css'
 import './index.css'
 import App from './App.tsx'
 

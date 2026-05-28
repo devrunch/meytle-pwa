@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CompanionProfile } from './companion-profile.entity';
 import { CompanionService } from './companion-service.entity';
@@ -10,6 +11,7 @@ import { CompanionsService } from './companions.service';
 
 @Module({
   imports: [
+    ConfigModule,
     TypeOrmModule.forFeature([
       CompanionProfile,
       CompanionService,

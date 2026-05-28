@@ -1,8 +1,30 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconShieldCheck, IconLock, IconMessage, IconId, IconSearch, IconMessages, IconHeart, IconQuote, IconStar, IconArrowRight, IconCoffee, IconPlane, IconMusic, IconCamera, IconBriefcase, IconMapPin, IconBalloon } from '@tabler/icons-react'
 import { Button, CompanionCard, ExperienceCard } from '../components/ui'
-import { MOCK_COMPANIONS, MOCK_EXPERIENCES } from '../data/mock'
-import type { ExperienceType } from '../types'
+import { api } from '../lib/api'
+import type { ExperienceType, Companion } from '../types'
+
+const EXPERIENCE_LABELS: { type: ExperienceType; label: string }[] = [
+  { type: 'coffee',  label: 'Coffee Dates' },
+  { type: 'dining',  label: 'Fine Dining' },
+  { type: 'concert', label: 'Concerts' },
+  { type: 'travel',  label: 'Travel' },
+  { type: 'fitness', label: 'Fitness' },
+  { type: 'culture', label: 'Cultural Events' },
+  { type: 'nature',  label: 'Nature Walks' },
+  { type: 'movies',  label: 'Movies' },
+]
+
+interface ApiCompanion {
+  id: string
+  displayName: string
+  profilePhotoUrl: string | null
+  hourlyRatePaisa: number
+  ratingAvg: number | null
+  ratingCount: number
+  isAvailableNow: boolean
+}
 
 // ── Decorative SVG primitives ─────────────────────────────────────────────────
 
@@ -103,6 +125,27 @@ const STATS = [
 
 export default function Landing() {
   const navigate = useNavigate()
+  const [companions, setCompanions] = useState<Companion[]>([])
+
+  useEffect(() => {
+    api.get<{ data: ApiCompanion[] }>('/companions', { params: { limit: 6 } })
+      .then(res => {
+        setCompanions(res.data.data.map(c => ({
+          id: c.id,
+          name: c.displayName,
+          initials: c.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+          avatarUrl: c.profilePhotoUrl,
+          rating: c.ratingAvg ?? 0,
+          reviewCount: c.ratingCount,
+          isAvailableNow: c.isAvailableNow,
+          priceFrom: Math.round(c.hourlyRatePaisa / 100),
+          services: [],
+          neighbourhood: 'NCR',
+          age: 0,
+        })))
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="overflow-x-hidden">
@@ -232,7 +275,7 @@ export default function Landing() {
 
         <div className="marquee-wrap">
           <div className="marquee-track gap-4 px-4">
-            {[...MOCK_EXPERIENCES, ...MOCK_EXPERIENCES].map(({ type, label }, i) => (
+            {[...EXPERIENCE_LABELS, ...EXPERIENCE_LABELS].map(({ type, label }, i) => (
               <ExperienceCard
                 key={`${type}-${i}`}
                 type={type as ExperienceType}
@@ -246,30 +289,32 @@ export default function Landing() {
       </section>
 
       {/* ── Featured companions ── */}
-      <section className="relative bg-white border-y-[0.5px] border-[var(--color-border)] py-14 overflow-hidden">
-        <Ring size={320} className="text-[var(--color-amber)] opacity-[0.04] -bottom-20 -left-20" />
-        <Ring size={160} className="text-[var(--color-amber)] opacity-[0.06] bottom-10 left-10" />
-        <Sparkle size={22} className="text-[var(--color-amber)] opacity-[0.18] top-10 right-24 hidden md:block" />
-        <Sparkle size={14} className="text-[var(--color-amber)] opacity-[0.14] bottom-16 right-1/3 hidden md:block" />
-        <FloatingIcon icon={<IconHeart size={44} stroke={1} color="var(--color-amber)" />} className="opacity-[0.08] top-12 left-[60%] hidden md:block" />
-        <FloatingIcon icon={<IconHeart size={24} stroke={1} color="var(--color-amber)" />} className="opacity-[0.07] bottom-8 left-[42%] hidden md:block" />
-        <FloatingIcon icon={<IconMapPin size={30} stroke={1} color="var(--color-amber)" />} className="opacity-[0.09] top-16 right-10 hidden md:block" />
+      {companions.length > 0 && (
+        <section className="relative bg-white border-y-[0.5px] border-[var(--color-border)] py-14 overflow-hidden">
+          <Ring size={320} className="text-[var(--color-amber)] opacity-[0.04] -bottom-20 -left-20" />
+          <Ring size={160} className="text-[var(--color-amber)] opacity-[0.06] bottom-10 left-10" />
+          <Sparkle size={22} className="text-[var(--color-amber)] opacity-[0.18] top-10 right-24 hidden md:block" />
+          <Sparkle size={14} className="text-[var(--color-amber)] opacity-[0.14] bottom-16 right-1/3 hidden md:block" />
+          <FloatingIcon icon={<IconHeart size={44} stroke={1} color="var(--color-amber)" />} className="opacity-[0.08] top-12 left-[60%] hidden md:block" />
+          <FloatingIcon icon={<IconHeart size={24} stroke={1} color="var(--color-amber)" />} className="opacity-[0.07] bottom-8 left-[42%] hidden md:block" />
+          <FloatingIcon icon={<IconMapPin size={30} stroke={1} color="var(--color-amber)" />} className="opacity-[0.09] top-16 right-10 hidden md:block" />
 
-        <div className="relative z-10 max-w-[1280px] mx-auto px-6 md:px-12 lg:px-20">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-amber)] mb-2">Featured companions</div>
-          <div className="flex items-end justify-between mb-6">
-            <h2 className="text-[28px] font-semibold text-[var(--color-dark)]">Meet <span className="text-gradient-primary">Featured</span> Companions</h2>
-            <button onClick={() => navigate('/app')} className="text-[12px] text-[var(--color-amber)] font-medium hidden md:flex items-center gap-1 hover:underline">
-              View all <IconArrowRight size={13} stroke={1.5} />
-            </button>
+          <div className="relative z-10 max-w-[1280px] mx-auto px-6 md:px-12 lg:px-20">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-amber)] mb-2">Featured companions</div>
+            <div className="flex items-end justify-between mb-6">
+              <h2 className="text-[28px] font-semibold text-[var(--color-dark)]">Meet <span className="text-gradient-primary">Featured</span> Companions</h2>
+              <button onClick={() => navigate('/app')} className="text-[12px] text-[var(--color-amber)] font-medium hidden md:flex items-center gap-1 hover:underline">
+                View all <IconArrowRight size={13} stroke={1.5} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {companions.map(c => (
+                <CompanionCard key={c.id} companion={c} onClick={() => navigate(`/companions/${c.id}`)} />
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {MOCK_COMPANIONS.map((c) => (
-              <CompanionCard key={c.id} companion={c} onClick={() => navigate(`/companions/${c.id}`)} />
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ── How it works ─────────────────────────────────────────────── */}
       <section id="how-it-works" className="relative max-w-[1280px] mx-auto px-6 md:px-12 lg:px-20 py-14 text-center overflow-hidden">

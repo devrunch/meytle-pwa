@@ -2,11 +2,14 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  ForbiddenException,
+  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository, DataSource } from 'typeorm';
-import { CompanionProfile, CompanionStatus, ServiceType } from './companion-profile.entity';
+import Stripe = require('stripe');
+import { CompanionProfile, CompanionStatus } from './companion-profile.entity';
 import { CompanionService as CompanionServiceEntity } from './companion-service.entity';
 import { CompanionAvailability } from './companion-availability.entity';
 import { User, UserRole } from '../users/user.entity';
@@ -17,13 +20,33 @@ import { DiscoveryQueryDto } from './dto/discovery-query.dto';
 
 @Injectable()
 export class CompanionsService {
+  private readonly logger = new Logger(CompanionsService.name);
+  private stripe: InstanceType<typeof Stripe> | null = null;
+
   constructor(
     @InjectRepository(CompanionProfile) private readonly profiles: Repository<CompanionProfile>,
     @InjectRepository(CompanionServiceEntity) private readonly services: Repository<CompanionServiceEntity>,
     @InjectRepository(CompanionAvailability) private readonly availability: Repository<CompanionAvailability>,
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly dataSource: DataSource,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    const key = this.config.get<string>('STRIPE_SECRET_KEY');
+    const keyValid =
+      !!key &&
+      (key.startsWith('sk_test_') || key.startsWith('sk_live_')) &&
+      key.length > 20;
+    if (keyValid) {
+      this.stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' });
+      this.logger.log(
+        `Stripe initialised — key ${key.slice(0, 12)}...${key.slice(-4)}`,
+      );
+    } else {
+      this.logger.warn(
+        `Stripe NOT initialised — STRIPE_SECRET_KEY missing or placeholder. Value: "${key ?? 'undefined'}"`,
+      );
+    }
+  }
 
   async createProfile(userId: string, dto: CreateCompanionProfileDto): Promise<CompanionProfile> {
     const existing = await this.profiles.findOne({ where: { userId } });
@@ -31,23 +54,23 @@ export class CompanionsService {
 
     const [lng, lat] = dto.serviceAreaCentre;
 
-    const dobSource = dto.dateOfBirth
-      ? dto.dateOfBirth
-      : await this.users.findOne({ where: { id: userId }, select: ['dateOfBirth'] })
-          .then(u => u?.dateOfBirth?.toISOString().split('T')[0] ?? null);
-
     const profile = await this.dataSource.transaction(async (em) => {
       const p = em.create(CompanionProfile, {
         userId,
         displayName: dto.displayName,
         bio: dto.bio,
-        dateOfBirth: dobSource ? new Date(dobSource) : undefined,
-        profilePhotoUrl: dto.profilePhotoUrl,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+        profilePhotoUrl: dto.profilePhotoUrl ?? null,
         hourlyRatePaisa: dto.hourlyRatePaisa,
-        serviceAreaCentre: `SRID=4326;POINT(${lng} ${lat})`,
         serviceAreaRadiusKm: dto.serviceAreaRadiusKm,
       });
       await em.save(p);
+
+      // Update geography column via raw SQL to bypass TypeORM's ST_GeomFromGeoJSON wrapping
+      await em.query(
+        `UPDATE companion_profiles SET service_area_centre = ST_GeomFromEWKT($1) WHERE id = $2`,
+        [`SRID=4326;POINT(${lng} ${lat})`, p.id],
+      );
 
       const svcEntities = dto.services.map((type) =>
         em.create(CompanionServiceEntity, { companionId: p.id, serviceType: type }),
@@ -55,15 +78,23 @@ export class CompanionsService {
       await em.save(svcEntities);
 
       // Add companion role to user
-      await em.getRepository(User).createQueryBuilder()
-        .update()
-        .set({ roles: () => `array_append(roles, '${UserRole.COMPANION}')` })
-        .where('id = :id AND NOT (roles @> ARRAY[:role::user_role])', { id: userId, role: UserRole.COMPANION })
-        .execute();
+      await em.query(
+        `UPDATE users SET roles = array_append(roles, $1::users_roles_enum) WHERE id = $2 AND NOT (roles::text[] @> ARRAY[$1]::text[])`,
+        [UserRole.COMPANION, userId],
+      );
 
       return p;
     });
 
+    return profile;
+  }
+
+  private async attachEwkt(profile: CompanionProfile): Promise<CompanionProfile> {
+    const [row] = await this.dataSource.query(
+      `SELECT ST_AsEWKT(service_area_centre::geometry) AS ewkt FROM companion_profiles WHERE id = $1`,
+      [profile.id],
+    );
+    profile.serviceAreaCentre = row?.ewkt ?? null;
     return profile;
   }
 
@@ -73,13 +104,13 @@ export class CompanionsService {
       relations: { user: true },
     });
     if (!profile) throw new NotFoundException('Companion not found');
-    return profile;
+    return this.attachEwkt(profile);
   }
 
   async getMyProfile(userId: string): Promise<CompanionProfile> {
-    const profile = await this.profiles.findOne({ where: { userId } });
+    const profile = await this.profiles.findOne({ where: { userId }, relations: { services: true } });
     if (!profile) throw new NotFoundException('No companion profile found');
-    return profile;
+    return this.attachEwkt(profile);
   }
 
   async updateProfile(userId: string, dto: UpdateCompanionProfileDto): Promise<CompanionProfile> {
@@ -148,13 +179,12 @@ export class CompanionsService {
       .skip(offset);
 
     if (query.service) {
-      qb = qb
-        .innerJoin(
-          'companion_services',
-          'cs',
-          'cs.companion_id = cp.id AND cs.service_type = :svc',
-          { svc: query.service },
-        );
+      qb = qb.innerJoin(
+        'companion_services',
+        'cs',
+        'cs.companion_id = cp.id AND cs.service_type = :svc',
+        { svc: query.service },
+      );
     }
 
     if (query.lat !== undefined && query.lng !== undefined && query.radiusKm !== undefined) {
@@ -172,11 +202,160 @@ export class CompanionsService {
     return { data, total };
   }
 
+  async updateStatus(companionId: string, status: CompanionStatus): Promise<CompanionProfile> {
+    const profile = await this.profiles.findOne({ where: { id: companionId } });
+    if (!profile) throw new NotFoundException('Companion not found');
+    await this.profiles.update(companionId, { profileStatus: status });
+    return { ...profile, profileStatus: status };
+  }
+
   async getServices(companionId: string): Promise<CompanionServiceEntity[]> {
     return this.services.find({ where: { companionId } });
   }
 
   async getAvailability(companionId: string): Promise<CompanionAvailability[]> {
     return this.availability.find({ where: { companionId } });
+  }
+
+  async getMyAvailability(userId: string): Promise<CompanionAvailability[]> {
+    const profile = await this.profiles.findOne({ where: { userId } });
+    if (!profile) throw new NotFoundException('No companion profile found');
+    return this.availability.find({ where: { companionId: profile.id } });
+  }
+
+  async createStripeOnboardingLink(userId: string, returnPath?: string): Promise<{ url: string }> {
+    if (!this.stripe) throw new InternalServerErrorException('Stripe is not configured — set STRIPE_SECRET_KEY in your .env');
+
+    const [profile, user] = await Promise.all([
+      this.profiles.findOne({ where: { userId } }),
+      this.users.findOne({ where: { id: userId } }),
+    ]);
+    if (!profile) throw new NotFoundException('No companion profile found');
+
+    let accountId = profile.stripeConnectedAccountId;
+
+    try {
+      if (!accountId) {
+        const nameParts = (user?.fullName ?? profile.displayName).trim().split(/\s+/);
+        const firstName = nameParts[0] ?? '';
+        const lastName  = nameParts.slice(1).join(' ') || firstName;
+
+        const appUrlForProfile = this.config.get<string>('APP_URL', 'http://localhost:5173');
+        const isLocalhost = appUrlForProfile.includes('localhost') || appUrlForProfile.includes('127.0.0.1');
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const createParams: any = {
+          type: 'express',
+          email: user?.email,
+          business_type: 'individual',
+          individual: {
+            first_name: firstName,
+            last_name: lastName,
+            email: user?.email,
+            relationship: {
+              title: 'Independent Companion',
+              owner: true,
+            },
+          },
+          business_profile: {
+            url: isLocalhost
+              ? 'https://meytle.app'
+              : `${appUrlForProfile}/companion/${profile.id}`,
+            name: profile.displayName,
+            mcc: '7299',
+            product_description:
+              'Personal companion and social experience services booked through the Meytle platform. Companions are paid per session for time spent with clients.',
+          },
+          capabilities: { transfers: { requested: true } },
+          metadata: { userId, companionId: profile.id },
+        };
+
+        if (profile.dateOfBirth) {
+          const dob = new Date(profile.dateOfBirth);
+          createParams.individual.dob = {
+            day:   dob.getUTCDate(),
+            month: dob.getUTCMonth() + 1,
+            year:  dob.getUTCFullYear(),
+          };
+        }
+
+        const account = await this.stripe.accounts.create(createParams);
+        accountId = account.id;
+        await this.profiles.update(profile.id, { stripeConnectedAccountId: accountId });
+      }
+
+      const appUrl = this.config.get<string>('APP_URL', 'http://localhost:5173');
+      const base = returnPath ?? '/companion/dashboard';
+      const link = await this.stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: `${appUrl}${base}?stripe=refresh`,
+        return_url:  `${appUrl}${base}?stripe=success`,
+        type: 'account_onboarding',
+      });
+
+      return { url: link.url };
+    } catch (err: unknown) {
+      const stripeMsg = (err as { raw?: { message?: string } })?.raw?.message;
+      throw new InternalServerErrorException(
+        stripeMsg ?? 'Stripe error — check your STRIPE_SECRET_KEY in .env',
+      );
+    }
+  }
+
+  async createStripeAccountSession(userId: string): Promise<{ clientSecret: string }> {
+    if (!this.stripe) throw new InternalServerErrorException('Stripe is not configured — set STRIPE_SECRET_KEY in your .env');
+
+    const profile = await this.profiles.findOne({ where: { userId } });
+    if (!profile) throw new NotFoundException('No companion profile found');
+    if (!profile.stripeConnectedAccountId) throw new NotFoundException('No Stripe account — call stripe-onboard first');
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const session = await (this.stripe as any).accountSessions.create({
+        account: profile.stripeConnectedAccountId,
+        components: {
+          account_onboarding: { enabled: true },
+        },
+      });
+      return { clientSecret: session.client_secret as string };
+    } catch (err: unknown) {
+      const stripeMsg = (err as { raw?: { message?: string } })?.raw?.message;
+      throw new InternalServerErrorException(stripeMsg ?? 'Failed to create Stripe account session');
+    }
+  }
+
+  async syncStripePayoutStatus(userId: string): Promise<{
+    payoutsEnabled: boolean;
+    identityVerified: boolean;
+    requirements: { currentlyDue: string[]; pastDue: string[]; eventuallyDue: string[] };
+  }> {
+    if (!this.stripe) return { payoutsEnabled: false, identityVerified: false, requirements: { currentlyDue: [], pastDue: [], eventuallyDue: [] } };
+
+    const profile = await this.profiles.findOne({ where: { userId } });
+    if (!profile?.stripeConnectedAccountId) return { payoutsEnabled: false, identityVerified: false, requirements: { currentlyDue: [], pastDue: [], eventuallyDue: [] } };
+
+    try {
+      const account = await this.stripe.accounts.retrieve(profile.stripeConnectedAccountId);
+      const payoutsEnabled = account.payouts_enabled ?? false;
+      const identityVerified = account.individual?.verification?.status === 'verified';
+      const reqs = account.requirements;
+
+      const updates: Partial<CompanionProfile> = {};
+      if (payoutsEnabled !== profile.stripePayoutsEnabled) updates.stripePayoutsEnabled = payoutsEnabled;
+      if (identityVerified !== profile.identityVerifiedByStripe) updates.identityVerifiedByStripe = identityVerified;
+      if (Object.keys(updates).length) await this.profiles.update(profile.id, updates);
+
+      return {
+        payoutsEnabled,
+        identityVerified,
+        requirements: {
+          currentlyDue:  reqs?.currently_due  ?? [],
+          pastDue:       reqs?.past_due       ?? [],
+          eventuallyDue: reqs?.eventually_due ?? [],
+        },
+      };
+    } catch {
+      return { payoutsEnabled: false, identityVerified: false, requirements: { currentlyDue: [], pastDue: [], eventuallyDue: [] } };
+    }
   }
 }

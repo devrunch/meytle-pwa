@@ -26,8 +26,9 @@ export class CreateCompanionProfileDto {
   @IsDateString()
   dateOfBirth?: string;
 
-  @IsUrl()
-  profilePhotoUrl: string;
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  profilePhotoUrl?: string;
 
   @IsNumber()
   @Min(50000)

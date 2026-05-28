@@ -7,6 +7,7 @@ import {
 } from '@tabler/icons-react'
 import { Avatar } from '../../components/ui'
 import LocationPickerMap from '../../components/ui/LocationPickerMap'
+import { useToast } from '../../components/ui/Toast'
 import { api } from '../../lib/api'
 
 interface ApiProfile {
@@ -71,8 +72,8 @@ function dbDayToJsDay(dbDay: number): number {
 function getDaysInMonth(year: number, month: number) { return new Date(year, month + 1, 0).getDate() }
 function getFirstDayOfMonth(year: number, month: number) { return new Date(year, month, 1).getDay() }
 
-function parseEwktCentre(ewkt: string | null): LngLat | null {
-  if (!ewkt) return null
+function parseEwktCentre(ewkt: unknown): LngLat | null {
+  if (!ewkt || typeof ewkt !== 'string') return null
   const m = ewkt.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/)
   if (!m) return null
   return { lng: parseFloat(m[1]), lat: parseFloat(m[2]) }
@@ -385,6 +386,7 @@ function CompanionSidebar({ profile, step, selectedService, selectedDate, select
 export default function BookingFlow() {
   const { companionId } = useParams<{ companionId: string }>()
   const navigate = useNavigate()
+  const toast = useToast()
   const [searchParams] = useSearchParams()
 
   const [profile, setProfile] = useState<ApiProfile | null>(null)
@@ -500,7 +502,7 @@ export default function BookingFlow() {
     if (step < TOTAL_STEPS) { setStep(s => s + 1); return }
 
     // Step 4: submit booking
-    if (!selectedDate || !selectedService) return
+    if (!selectedDate || !selectedService || !profile) return
     setSubmitting(true)
     try {
       const startHour = dateAvailable ? parseSlot(selectedTime!) : parseSlot(customRequest.from)
@@ -521,9 +523,11 @@ export default function BookingFlow() {
         isCustomRequest: !dateAvailable,
         customNote: !dateAvailable ? customRequest.note : undefined,
       })
+      toast('success', 'Booking confirmed!', 'Your request has been sent to the companion.')
       navigate('/app/bookings', { replace: true })
-    } catch {
-      // TODO: show error toast
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast('error', 'Booking failed', typeof msg === 'string' ? msg : 'Please try again.')
     } finally {
       setSubmitting(false)
     }

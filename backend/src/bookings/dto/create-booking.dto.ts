@@ -40,7 +40,8 @@ export class CreateBookingDto {
   @IsOptional()
   customNote?: string;
 
-  // Stripe Payment Method ID — passed from frontend Stripe.js
+  // Stripe Payment Method ID — passed from frontend Stripe.js (optional until payment is wired)
   @IsString()
-  paymentMethodId: string;
+  @IsOptional()
+  paymentMethodId?: string;
 }
