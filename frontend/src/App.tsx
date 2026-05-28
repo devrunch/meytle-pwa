@@ -20,8 +20,11 @@ import { ChatPage } from './pages/app/ChatPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminUserDetail } from './pages/admin/AdminUserDetail';
 import { AdminCompanions } from './pages/admin/AdminCompanions';
+import { AdminCompanionDetail } from './pages/admin/AdminCompanionDetail';
 import { AdminBookings } from './pages/admin/AdminBookings';
+import { AdminBookingDetail } from './pages/admin/AdminBookingDetail';
 import { useAuthStore } from './store/authStore';
 
 function RootRedirect() {
@@ -78,8 +81,11 @@ export default function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="users/:id" element={<AdminUserDetail />} />
             <Route path="companions" element={<AdminCompanions />} />
+            <Route path="companions/:id" element={<AdminCompanionDetail />} />
             <Route path="bookings" element={<AdminBookings />} />
+            <Route path="bookings/:id" element={<AdminBookingDetail />} />
           </Route>
         </Route>
 
