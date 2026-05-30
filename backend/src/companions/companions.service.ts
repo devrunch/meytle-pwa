@@ -37,7 +37,7 @@ export class CompanionsService {
       (key.startsWith('sk_test_') || key.startsWith('sk_live_')) &&
       key.length > 20;
     if (keyValid) {
-      this.stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' });
+      this.stripe = new Stripe(key, { apiVersion: '2026-05-27.dahlia' });
       this.logger.log(
         `Stripe initialised — key ${key.slice(0, 12)}...${key.slice(-4)}`,
       );
@@ -172,7 +172,7 @@ export class CompanionsService {
     let qb = this.profiles
       .createQueryBuilder('cp')
       .leftJoinAndSelect('cp.user', 'u')
-      .where('cp.profile_status = :status', { status: CompanionStatus.ACTIVE })
+      .where('cp.profile_status IN (:...statuses)', { statuses: [CompanionStatus.ACTIVE, CompanionStatus.PENDING_VERIFICATION] })
       .orderBy('cp.is_available_now', 'DESC')
       .addOrderBy('cp.rating_avg', 'DESC', 'NULLS LAST')
       .take(limit)

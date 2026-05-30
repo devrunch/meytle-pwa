@@ -27,6 +27,18 @@ export class AuthController {
     return user;
   }
 
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  forgotPassword(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body.email).then(() => ({ message: 'If that email exists, a reset link has been sent' }));
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  resetPassword(@Body() body: { token: string; password: string }) {
+    return this.authService.resetPassword(body.token, body.password).then(() => ({ message: 'Password updated' }));
+  }
+
   @Post('promote-admin')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)

@@ -51,6 +51,12 @@ export class User {
   })
   roles: UserRole[];
 
+  @Column({ name: 'password_reset_token', nullable: true, type: 'text' })
+  passwordResetToken: string | null;
+
+  @Column({ name: 'password_reset_expires_at', nullable: true, type: 'timestamptz' })
+  passwordResetExpiresAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

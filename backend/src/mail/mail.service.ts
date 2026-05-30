@@ -50,6 +50,18 @@ export class MailService {
 
   // ── Templates ───────────────────────────────────────────────────────────────
 
+  passwordReset(resetUrl: string): string {
+    const url = this.esc(resetUrl);
+    return `
+      <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
+        <h2 style="color:#0F172A;margin:0 0 8px">Reset your password</h2>
+        <p style="color:#64748B;margin:0 0 24px">Click the button below to set a new password. This link expires in <b>1 hour</b>.</p>
+        <a href="${url}" style="display:inline-block;background:linear-gradient(135deg,#00D4AA,#4F8CFF);color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:600;font-size:15px;">Reset Password</a>
+        <p style="color:#94A3B8;font-size:12px;margin-top:24px;">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
+        <p style="color:#94A3B8;font-size:11px;margin-top:8px;word-break:break-all;">Or copy this link: ${url}</p>
+      </div>`;
+  }
+
   bookingConfirmedUser(userName: string, companionName: string, date: string, time: string): string {
     const [u, c, d, t] = [userName, companionName, date, time].map((v) => this.esc(v));
     return `

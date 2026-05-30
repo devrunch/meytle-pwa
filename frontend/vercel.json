@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://srv1307295.hstgr.cloud/api/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://srv1307295.hstgr.cloud/uploads/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

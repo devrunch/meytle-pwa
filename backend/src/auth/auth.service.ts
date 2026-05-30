@@ -9,11 +9,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { User, UserRole } from '../users/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './jwt.strategy';
 import { ConfigService } from '@nestjs/config';
+import { MailService } from '../mail/mail.service';
 
 const MIN_AGE_YEARS = 18;
 
@@ -23,6 +25,7 @@ export class AuthService {
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly mail: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -86,6 +89,35 @@ export class AuthService {
       await this.users.save(user);
     }
     return this.issueToken(user);
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.users.findOne({ where: { email: email.toLowerCase() } });
+    if (!user) return; // silently succeed — don't reveal whether email exists
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    user.passwordResetToken = token;
+    user.passwordResetExpiresAt = expiresAt;
+    await this.users.save(user);
+
+    const appUrl = this.config.get<string>('APP_URL', 'http://localhost:5173');
+    const resetUrl = `${appUrl}/reset-password?token=${token}`;
+    await this.mail.send(user.email, 'Reset your Meytle password', this.mail.passwordReset(resetUrl));
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const user = await this.users.findOne({ where: { passwordResetToken: token } });
+
+    if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
+      throw new BadRequestException('Reset link is invalid or has expired');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    user.passwordResetToken = null;
+    user.passwordResetExpiresAt = null;
+    await this.users.save(user);
   }
 
   private assertMinAge(dob: string) {

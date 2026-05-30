@@ -4,7 +4,7 @@ import {
   IconStar, IconLoader2, IconArrowRight,
   IconCalendarEvent, IconMessage2, IconUserStar,
   IconMapPin, IconClock, IconSearch, IconCompass,
-  IconSparkles, IconTrendingUp,
+  IconSparkles, IconTrendingUp, IconShieldCheck,
 } from '@tabler/icons-react';
 import { client } from '../../api/client';
 import { bookingsApi } from '../../api/bookings';
@@ -65,12 +65,21 @@ function CompanionCard({ companion }: { companion: CompanionProfile }) {
             Available
           </div>
         )}
-        {companion.ratingAvg && (
-          <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/50 backdrop-blur-md text-white text-[10px] font-semibold px-2 py-1 rounded-full">
-            <IconStar size={10} className="fill-yellow-400 text-yellow-400" />
-            {companion.ratingAvg.toFixed(1)}
-          </div>
-        )}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          {companion.profileStatus === 'active' && (
+            <div className="flex items-center gap-1 bg-black/50 backdrop-blur-md text-[10px] font-semibold px-2 py-1 rounded-full"
+              style={{ color: '#00D4AA' }}>
+              <IconShieldCheck size={11} />
+              Verified
+            </div>
+          )}
+          {companion.ratingAvg && (
+            <div className="flex items-center gap-1 bg-black/50 backdrop-blur-md text-white text-[10px] font-semibold px-2 py-1 rounded-full">
+              <IconStar size={10} className="fill-yellow-400 text-yellow-400" />
+              {companion.ratingAvg.toFixed(1)}
+            </div>
+          )}
+        </div>
         {/* Info overlay at bottom */}
         <div className="absolute bottom-0 left-0 right-0 p-3">
           <p className="text-white font-semibold text-sm truncate">{companion.displayName}</p>

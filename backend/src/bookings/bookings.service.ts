@@ -40,7 +40,7 @@ export class BookingsService {
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY');
     if (key?.startsWith('sk_')) {
-      this.stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' });
+      this.stripe = new Stripe(key, { apiVersion: '2026-05-27.dahlia' });
       this.logger.log('Stripe initialised for payments');
     } else {
       this.logger.warn('Stripe NOT initialised — STRIPE_SECRET_KEY missing');

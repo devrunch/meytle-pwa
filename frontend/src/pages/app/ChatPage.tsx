@@ -105,7 +105,9 @@ export function ChatPage() {
     const token = getToken();
     if (!token) return;
 
-    const socket = io('/messages', {
+    const socketUrl = import.meta.env.VITE_API_URL ?? '';
+    const socket = io(socketUrl, {
+      path: '/socket.io',
       auth: { token },
       transports: ['websocket', 'polling'],
     });
@@ -220,7 +222,7 @@ export function ChatPage() {
           <IconArrowLeft size={18} />
         </button>
 
-        <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
+        <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-linear-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
           {companion?.profilePhotoUrl ? (
             <img src={companion.profilePhotoUrl} alt="" className="w-full h-full object-cover" />
           ) : (
@@ -256,7 +258,7 @@ export function ChatPage() {
               <span className="text-2xl">👋</span>
             </div>
             <p className="text-sm font-semibold text-gray-700 mb-1">Start the conversation</p>
-            <p className="text-xs text-gray-400 max-w-[220px]">
+            <p className="text-xs text-gray-400 max-w-55">
               Say hello to {companion?.displayName ?? 'your companion'} before your session
             </p>
           </div>
@@ -305,7 +307,7 @@ export function ChatPage() {
                               : { borderColor: 'rgba(0,0,0,0.07)' }
                           }
                         >
-                          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
+                          <p className="text-sm leading-relaxed wrap-break-word whitespace-pre-wrap">
                             {msg.content}
                           </p>
                           <p
