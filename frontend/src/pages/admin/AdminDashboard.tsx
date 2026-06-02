@@ -29,11 +29,11 @@ const STATUS_CFG: Record<string, { color: string; bg: string; label: string }> =
 };
 
 function rupees(p: number) {
-  return `₹${(p / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  return `$${(p / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
 function shortDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 }
 
 // Pure-CSS bar chart — no external library
@@ -67,7 +67,7 @@ function RevenueChart({ data }: { data: DayRevenue[] }) {
             </div>
             {/* Label */}
             <span className="text-[8px] text-white/25 font-medium leading-none">
-              {new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric' })}
+              {new Date(d.date).toLocaleDateString('en-US', { day: 'numeric' })}
             </span>
           </div>
         );

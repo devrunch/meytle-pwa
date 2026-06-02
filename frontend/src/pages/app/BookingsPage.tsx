@@ -18,15 +18,15 @@ function isChatOpen(booking: Booking): boolean {
 }
 
 function rupees(paisa: number) {
-  return `₹${(paisa / 100).toLocaleString('en-IN')}`;
+  return `$${(paisa / 100).toLocaleString('en-US')}`;
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 const STATUS_CFG = {

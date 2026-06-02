@@ -288,7 +288,7 @@ export function CompanionDetailPage() {
               {[
                 { icon: <IconStar size={18} stroke={1.5} className="text-amber-500" />, value: rating > 0 ? rating.toFixed(1) : '—', label: 'Rating' },
                 { icon: <IconCalendar size={18} stroke={1.5} className="text-amber-500" />, value: `${profile.ratingCount ?? 0}`, label: 'Reviews' },
-                { icon: <IconClock size={18} stroke={1.5} className="text-amber-500" />, value: `₹${pricePerHr.toLocaleString()}`, label: '/ hr' },
+                { icon: <IconClock size={18} stroke={1.5} className="text-amber-500" />, value: `$${pricePerHr.toLocaleString()}`, label: '/ hr' },
               ].map((stat) => (
                 <div key={stat.label} className="flex flex-col items-center gap-1 bg-white rounded-xl border border-border py-3 px-2">
                   {stat.icon}
@@ -337,7 +337,7 @@ export function CompanionDetailPage() {
               <div className="mb-6 pb-6 border-b border-border">
                 <div className="flex items-baseline gap-2 mb-3">
                   <h2 className="text-[16px] font-semibold text-heading">Services</h2>
-                  <span className="text-[13px] text-muted">· ₹{pricePerHr.toLocaleString()} / hr for all</span>
+                  <span className="text-[13px] text-muted">· ${pricePerHr.toLocaleString()} / hr for all</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {services.map((s) => {
@@ -402,7 +402,7 @@ export function CompanionDetailPage() {
                   {reviews.map((review) => {
                     const name     = review.reviewer?.fullName ?? 'User';
                     const initials = name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
-                    const date     = new Date(review.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+                    const date     = new Date(review.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
                     return (
                       <div key={review.id} className="bg-white rounded-xl border border-border p-4">
                         <div className="flex items-center gap-3 mb-3">
@@ -445,7 +445,7 @@ export function CompanionDetailPage() {
                 <div className="px-6 pt-6 pb-4 border-b border-border">
                   <div className="flex items-center justify-between mb-1">
                     <div>
-                      <span className="text-[24px] font-bold text-heading">₹{pricePerHr.toLocaleString()}</span>
+                      <span className="text-[24px] font-bold text-heading">${pricePerHr.toLocaleString()}</span>
                       <span className="text-[13px] text-muted ml-1">/ hr</span>
                     </div>
                     {rating > 0 && (
@@ -530,7 +530,7 @@ export function CompanionDetailPage() {
             <div>
               <p className="text-[10px] text-muted">Hourly rate</p>
               <p className="text-[17px] font-bold text-heading">
-                ₹{pricePerHr.toLocaleString()}
+                ${pricePerHr.toLocaleString()}
                 <span className="text-[12px] font-normal text-muted">/hr</span>
               </p>
             </div>

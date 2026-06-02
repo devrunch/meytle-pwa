@@ -50,6 +50,19 @@ export class MailService {
 
   // ── Templates ───────────────────────────────────────────────────────────────
 
+  emailOtp(otp: string, name: string): string {
+    const n = this.esc(name);
+    return `
+      <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
+        <h2 style="color:#0F172A;margin:0 0 8px">Verify your email</h2>
+        <p style="color:#64748B;margin:0 0 24px">Hi ${n}, enter this code to verify your Meytle account. It expires in <b>15 minutes</b>.</p>
+        <div style="background:#F0FAF8;border-radius:16px;padding:24px;text-align:center;margin-bottom:24px;">
+          <p style="font-size:40px;font-weight:800;letter-spacing:12px;color:#0F172A;margin:0;">${otp}</p>
+        </div>
+        <p style="color:#94A3B8;font-size:12px;margin:0;">If you didn't create a Meytle account, you can ignore this email.</p>
+      </div>`;
+  }
+
   passwordReset(resetUrl: string): string {
     const url = this.esc(resetUrl);
     return `

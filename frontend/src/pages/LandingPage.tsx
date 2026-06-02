@@ -146,7 +146,7 @@ function CompanionCard({ companion }: { companion: CompanionProfile }) {
           <div className="flex items-center gap-1 mt-0.5">
             <IconStar size={11} className="text-yellow-400 fill-yellow-400" />
             <span className="text-white/80 text-xs">{companion.ratingAvg?.toFixed(1) ?? '—'}</span>
-            <span className="text-white/50 text-xs ml-auto">₹{rate.toLocaleString('en-IN')}/hr</span>
+            <span className="text-white/50 text-xs ml-auto">${rate.toLocaleString('en-US')}/hr</span>
           </div>
         </div>
       </div>

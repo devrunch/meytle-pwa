@@ -22,7 +22,7 @@ const INPUT = "w-full px-3.5 py-2.5 rounded-xl text-sm border focus:outline-none
 const INPUT_STYLE = { background: '#0B1120', borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.85)' };
 
 function rupees(p: number) {
-  return `₹${(p / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  return `$${(p / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -194,9 +194,9 @@ export function AdminBookingDetail() {
             <ReadonlyField label="Duration"
               value={`${booking.bookedDurationMinutes / 60}h`} />
             <ReadonlyField label="Start"
-              value={new Date(booking.bookedStart).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} />
+              value={new Date(booking.bookedStart).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} />
             <ReadonlyField label="End"
-              value={new Date(booking.bookedEnd).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} />
+              value={new Date(booking.bookedEnd).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} />
             <ReadonlyField label="Stripe PI"
               value={(booking as any).stripePaymentIntentId
                 ? <span className="font-mono text-[11px]">{(booking as any).stripePaymentIntentId}</span>
@@ -222,11 +222,11 @@ export function AdminBookingDetail() {
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Companion Payout (₹)">
+              <Field label="Companion Payout ($)">
                 <input type="number" className={INPUT} style={INPUT_STYLE}
                   value={companionPayoutPaisa} onChange={(e) => setCompanionPayoutPaisa(e.target.value)} />
               </Field>
-              <Field label="Platform Fee (₹)">
+              <Field label="Platform Fee ($)">
                 <input type="number" className={INPUT} style={INPUT_STYLE}
                   value={platformFeePaisa} onChange={(e) => setPlatformFeePaisa(e.target.value)} />
               </Field>

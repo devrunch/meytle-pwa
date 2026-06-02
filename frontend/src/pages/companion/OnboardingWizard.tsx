@@ -7,11 +7,12 @@ import {
   IconCoffee, IconToolsKitchen2, IconMusic, IconPlane, IconRun,
   IconPalette, IconLeaf, IconMovie, IconShoppingBag, IconDeviceGamepad,
   IconClock, IconBrandStripe, IconWallet, IconChevronUp, IconChevronDown,
-  IconHeart, IconTags, IconMessageDots, IconShieldCheck,
+  IconHeart, IconTags, IconMessageDots, IconShieldCheck, IconCurrentLocation,
 } from '@tabler/icons-react';
 import { loadConnectAndInitialize } from '@stripe/connect-js';
 import { ConnectComponentsProvider, ConnectAccountOnboarding } from '@stripe/react-connect-js';
-import { MapContainer, TileLayer, Circle, CircleMarker, Tooltip, ZoomControl, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, CircleMarker, Tooltip, ZoomControl, useMap, useMapEvents, Marker } from 'react-leaflet';
+import L from 'leaflet';
 import toast from 'react-hot-toast';
 import { client } from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
@@ -153,7 +154,7 @@ function RangeBar({ fromTime, toTime }: { fromTime: string; toTime: string }) {
 }
 
 const STEP_COPY = [
-  { headline: 'Turn your time\ninto earnings',      sub: 'Join companions earning ₹10K+ a month doing what they love.' },
+  { headline: 'Turn your time\ninto earnings',      sub: 'Join companions earning $10K+ a month doing what they love.' },
   { headline: 'Your name is your\nbrand',           sub: 'A great display name makes clients remember you.' },
   { headline: 'Bios get 2×\nmore bookings',        sub: 'Clients connect with your story before they ever book.' },
   { headline: 'Faces build\ntrust instantly',       sub: 'Profiles with photos receive 3× more booking requests.' },
@@ -182,7 +183,7 @@ interface FormData {
   services: ServiceType[];
   hourlyRate: number;
   areaLabel: string;
-  radiusKm: number;
+  radiusKm?: number;
   coords: [number, number];
   selectedAreaIds: string[];
   slots: DaySlot[];
@@ -199,8 +200,8 @@ const INITIAL: FormData = {
   services: [],
   hourlyRate: 1000,
   areaLabel: '',
-  radiusKm: 10,
-  coords: [77.1025, 28.7041],
+  radiusKm: undefined,
+  coords: [0, 0],
   selectedAreaIds: [],
   slots: Array(7).fill(null).map(() => ({ ...DEFAULT_SLOT })),
   selfieUrl: '',
@@ -248,7 +249,7 @@ function LivePreviewCard({ data }: { data: FormData }) {
       {data.hourlyRate >= 500 && (
         <div className="absolute top-3 left-3 bg-black/30 backdrop-blur-sm px-2 py-1 rounded-full">
           <span className="text-[10px] text-white font-bold">
-            ₹{data.hourlyRate.toLocaleString('en-IN')}/hr
+            ${data.hourlyRate.toLocaleString('en-US')}/hr
           </span>
         </div>
       )}
@@ -709,11 +710,11 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
       <StepHeader
         icon={IconCurrencyRupee}
         title="Set your rate"
-        sub="You can change this anytime. Minimum ₹500/hour."
+        sub="You can change this anytime. Minimum $500/hour."
       />
       <div className="text-center mb-6">
         <div className="inline-flex items-center gap-1">
-          <span className="text-3xl font-bold text-muted">₹</span>
+          <span className="text-3xl font-bold text-muted">$</span>
           <input
             type="number"
             value={data.hourlyRate}
@@ -734,7 +735,7 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
                 data.hourlyRate === r ? 'text-white border-transparent' : 'border-border text-muted hover:border-accent-green/40'
               }`}
               style={data.hourlyRate === r ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
-              ₹{r.toLocaleString('en-IN')}
+              ${r.toLocaleString('en-US')}
             </button>
           ))}
         </div>
@@ -746,7 +747,7 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
           { label: '20 sessions/mo', hrs: 20 },
         ].map(({ label, hrs }) => (
           <div key={label}>
-            <p className="text-sm font-bold text-heading">₹{(data.hourlyRate * hrs * 2).toLocaleString('en-IN')}</p>
+            <p className="text-sm font-bold text-heading">${(data.hourlyRate * hrs * 2).toLocaleString('en-US')}</p>
             <p className="text-[10px] text-muted mt-0.5">{label}</p>
           </div>
         ))}
@@ -777,48 +778,56 @@ function MapCityFit({ areas, activeCity }: { areas: ServiceArea[]; activeCity: s
   return null;
 }
 
+const pinIcon = new L.Icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41], iconAnchor: [12, 41],
+});
+
+function MapClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
+  useMapEvents({ click: (e) => onPick(e.latlng.lat, e.latlng.lng) });
+  return null;
+}
+
+function FlyTo({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => { map.flyTo([lat, lng], 12, { duration: 1.2 }); }, [lat, lng, map]);
+  return null;
+}
+
 function StepLocation({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
-  const [areas, setAreas]           = useState<ServiceArea[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [activeCity, setActiveCity] = useState('Delhi NCR');
+  const [locating, setLocating] = useState(false);
+  const hasPin = data.coords[0] !== 0 || data.coords[1] !== 0;
+  const [lng, lat] = data.coords;
 
-  useEffect(() => {
-    client.get<ServiceArea[]>('/service-areas')
-      .then((r) => { setAreas(r.data); if (r.data[0]) setActiveCity(r.data[0].city); })
-      .catch(() => toast.error('Could not load service areas'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const isSel = (id: string) => data.selectedAreaIds.includes(id);
-
-  const toggle = (area: ServiceArea) => {
-    const newIds = isSel(area.id)
-      ? data.selectedAreaIds.filter((id) => id !== area.id)
-      : [...data.selectedAreaIds, area.id];
-    const sel = areas.filter((a) => newIds.includes(a.id));
-    if (sel.length === 0) { onChange({ selectedAreaIds: [], areaLabel: '', coords: [77.1025, 28.7041] }); return; }
-    const avgLat = sel.reduce((s, a) => s + a.lat, 0) / sel.length;
-    const avgLng = sel.reduce((s, a) => s + a.lng, 0) / sel.length;
-    const radius = sel.length === 1 ? sel[0].defaultRadiusKm
-      : Math.round(sel.reduce((s, a) => s + a.defaultRadiusKm, 0) / sel.length);
-    onChange({
-      selectedAreaIds: newIds,
-      areaLabel:       sel.map((a) => a.name).join(', '),
-      coords:          [avgLng, avgLat],
-      radiusKm:        radius,
-    });
+  const applyCoords = async (newLat: number, newLng: number) => {
+    onChange({ coords: [newLng, newLat], areaLabel: 'Location set' });
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${newLat}&lon=${newLng}&format=json`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const d = await res.json();
+      const label = d.address?.city || d.address?.town || d.address?.village || d.address?.county || d.address?.state || 'Location set';
+      onChange({ coords: [newLng, newLat], areaLabel: label });
+    } catch { /* keep 'Location set' */ }
   };
 
-  const cities    = [...new Set(areas.map((a) => a.city))];
-  const cityAreas = areas.filter((a) => a.city === activeCity);
-  const initCenter: [number, number] = (() => {
-    const f = areas.find((a) => a.city === activeCity);
-    return f ? [f.lat, f.lng] : [28.6, 77.2];
-  })();
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { applyCoords(pos.coords.latitude, pos.coords.longitude); setLocating(false); },
+      ()    => { toast.error('Location access denied'); setLocating(false); },
+      { timeout: 8000 }
+    );
+  };
+
+  const initCenter: [number, number] = hasPin ? [lat, lng] : [20, 0];
 
   return (
     <>
-      <div className="px-5 md:px-8 pt-4 pb-2 flex-shrink-0">
+      <div className="px-5 md:px-8 pt-4 pb-3 flex-shrink-0">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{ background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' }}>
@@ -826,112 +835,52 @@ function StepLocation({ data, onChange }: { data: FormData; onChange: (d: Partia
           </div>
           <div>
             <h2 className="text-base font-extrabold text-heading">Your service area</h2>
-            <p className="text-[11px] text-muted">Pick a city · then select your zones</p>
+            <p className="text-[11px] text-muted">Drop a pin on the map or use your location</p>
           </div>
         </div>
-        {!loading && (
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-            {cities.map((city) => {
-              const active   = activeCity === city;
-              const selCount = areas.filter((a) => a.city === city && isSel(a.id)).length;
-              return (
-                <button key={city} onClick={() => setActiveCity(city)}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95"
-                  style={active
-                    ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)', color: '#fff' }
-                    : selCount > 0
-                    ? { background: '#E0F7F4', color: '#00A896' }
-                    : { background: '#F1F5F9', color: '#4B5563' }}>
-                  {city}
-                  {selCount > 0 && (
-                    <span className={`text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${active ? 'bg-white/30 text-white' : 'bg-white text-accent-green'}`}>
-                      {selCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <button
+          onClick={useMyLocation}
+          disabled={locating}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all active:scale-95 disabled:opacity-50"
+          style={{ borderColor: '#00D4AA', color: '#00A896', background: '#F0FDFB' }}>
+          {locating
+            ? <IconLoader2 size={15} className="animate-spin" />
+            : <IconCurrentLocation size={15} />}
+          {locating ? 'Getting location…' : 'Use my location'}
+        </button>
       </div>
 
       <div className="flex-1 relative min-h-0">
-        {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-surface-alt">
-            <IconLoader2 size={28} className="animate-spin text-accent-green" />
+        <MapContainer center={initCenter} zoom={hasPin ? 12 : 2}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false} attributionControl={false}>
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" opacity={0.85} />
+          <ZoomControl position="bottomright" />
+          <MapClickHandler onPick={applyCoords} />
+          {hasPin && (
+            <>
+              <Marker position={[lat, lng]} icon={pinIcon} />
+              <FlyTo lat={lat} lng={lng} />
+            </>
+          )}
+        </MapContainer>
+        {!hasPin && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl px-5 py-3 shadow-lg text-center">
+              <p className="text-sm font-semibold text-heading">Tap the map to drop a pin</p>
+              <p className="text-[11px] text-muted mt-0.5">or use the button above</p>
+            </div>
           </div>
-        ) : (
-          <MapContainer center={initCenter} zoom={11}
-            style={{ height: '100%', width: '100%' }}
-            zoomControl={false} attributionControl={false}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" opacity={0.85} />
-            <ZoomControl position="bottomright" />
-            {areas.map((area) => {
-              const sel = isSel(area.id);
-              if (area.city !== activeCity && !sel) return null;
-              return (
-                <React.Fragment key={area.id}>
-                  <Circle
-                    center={[area.lat, area.lng]}
-                    radius={area.defaultRadiusKm * 1000}
-                    pathOptions={{
-                      color:       sel ? '#00D4AA' : '#94A3B8',
-                      fillColor:   sel ? '#00D4AA' : '#CBD5E1',
-                      fillOpacity: sel ? 0.25 : 0.06,
-                      weight:      sel ? 2.5 : 1,
-                      dashArray:   sel ? undefined : '5 5',
-                    }}
-                  />
-                  <CircleMarker
-                    center={[area.lat, area.lng]}
-                    radius={sel ? 8 : 5}
-                    pathOptions={{
-                      color:       sel ? '#007A63' : '#64748B',
-                      fillColor:   sel ? '#00D4AA' : '#94A3B8',
-                      fillOpacity: 1, weight: 2,
-                    }}
-                  >
-                    <Tooltip direction="top" offset={[0, -8]} opacity={0.96} className="meytle-area-tip">
-                      <span style={{ fontSize: 11, fontWeight: 600, color: sel ? '#00A896' : '#374151' }}>
-                        {sel ? '✓ ' : ''}{area.name}
-                      </span>
-                    </Tooltip>
-                  </CircleMarker>
-                </React.Fragment>
-              );
-            })}
-            <MapCityFit areas={areas} activeCity={activeCity} />
-          </MapContainer>
         )}
       </div>
 
-      <div className="px-5 md:px-8 py-3 border-t border-border bg-surface flex-shrink-0">
-        {!loading && (
-          <>
-            <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2.5">{activeCity}</p>
-            <div className="flex flex-wrap gap-2">
-              {cityAreas.map((area) => {
-                const sel = isSel(area.id);
-                return (
-                  <button key={area.id} onClick={() => toggle(area)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95"
-                    style={sel
-                      ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)', color: '#fff', borderColor: 'transparent' }
-                      : { background: '#FAFFFE', color: '#4B5563', borderColor: '#E2E8F0' }}>
-                    {sel && <IconCheck size={11} className="text-white shrink-0" />}
-                    {area.name}
-                  </button>
-                );
-              })}
-            </div>
-            {data.selectedAreaIds.length > 0 && (
-              <p className="text-[11px] text-muted mt-2.5">
-                <span className="text-accent-green font-semibold">{data.selectedAreaIds.length} zone{data.selectedAreaIds.length > 1 ? 's' : ''}</span> selected total
-              </p>
-            )}
-          </>
-        )}
-      </div>
+      {hasPin && (
+        <div className="px-5 md:px-8 py-3 border-t border-border bg-surface flex-shrink-0">
+          <p className="text-[11px] text-muted">
+            📍 {lat.toFixed(4)}, {lng.toFixed(4)}
+          </p>
+        </div>
+      )}
     </>
   );
 }
@@ -1070,10 +1019,10 @@ function StepReview({
           <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between">
             <div>
               <p className="text-white font-bold">{data.displayName}</p>
-              <p className="text-white/70 text-xs">{data.areaLabel || 'India'} · {data.radiusKm}km</p>
+              <p className="text-white/70 text-xs">{data.areaLabel || 'Not set'}</p>
             </div>
             <p className="text-white font-bold">
-              ₹{data.hourlyRate.toLocaleString('en-IN')}
+              ${data.hourlyRate.toLocaleString('en-US')}
               <span className="text-white/60 text-xs font-normal">/hr</span>
             </p>
           </div>
@@ -1097,8 +1046,8 @@ function StepReview({
       <div className="space-y-2 mb-6">
         {[
           { icon: IconUser,        label: 'Display name', val: data.displayName },
-          { icon: IconMapPin,      label: 'Area',         val: `${data.areaLabel || 'Not set'} · ${data.radiusKm}km` },
-          { icon: IconCurrencyRupee, label: 'Hourly rate', val: `₹${data.hourlyRate.toLocaleString('en-IN')}/hr` },
+          { icon: IconMapPin,      label: 'Location',     val: data.areaLabel || 'Not set' },
+          { icon: IconCurrencyRupee, label: 'Hourly rate', val: `$${data.hourlyRate.toLocaleString('en-US')}/hr` },
           { icon: IconLayoutGrid,  label: 'Services',     val: `${data.services.length} selected` },
           { icon: IconClock,       label: 'Availability', val: enabledDays.length > 0 ? enabledDays.join(', ') : 'Not set' },
         ].map(({ icon: Icon, label, val }) => (
@@ -1432,7 +1381,7 @@ export function OnboardingWizard() {
     if (step === 5) return true;   // prompt optional
     if (step === 6) return data.services.length >= 1;
     if (step === 7) return data.hourlyRate >= 500;
-    if (step === 8) return data.selectedAreaIds.length >= 1;
+    if (step === 8) return data.coords[0] !== 0 || data.coords[1] !== 0;
     if (step === 9) return true;   // availability optional
     if (step === 11) return true;  // identity optional
     return true;
@@ -1470,7 +1419,6 @@ export function OnboardingWizard() {
           profilePhotoUrl:     data.profilePhotoUrl || undefined,
           hourlyRatePaisa:     data.hourlyRate * 100,
           serviceAreaCentre:   data.coords,
-          serviceAreaRadiusKm: data.radiusKm,
           services:            data.services,
         }),
         client.patch('/users/me', {

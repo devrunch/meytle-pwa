@@ -34,7 +34,7 @@ export class AdminService {
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY');
     if (key?.startsWith('sk_')) {
-      this.stripe = new Stripe(key, { apiVersion: '2026-05-27.dahlia' });
+      this.stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' });
     }
   }
 
@@ -185,6 +185,9 @@ export class AdminService {
     if (dto.stripePayoutsEnabled !== undefined) c.stripePayoutsEnabled = dto.stripePayoutsEnabled;
     if (dto.ratingAvg !== undefined) c.ratingAvg = dto.ratingAvg;
     if (dto.ratingCount !== undefined) c.ratingCount = dto.ratingCount;
+    if (dto.serviceAreaLat !== undefined && dto.serviceAreaLng !== undefined) {
+      c.serviceAreaCentre = `SRID=4326;POINT(${dto.serviceAreaLng} ${dto.serviceAreaLat})`;
+    }
     return this.companions.save(c);
   }
 

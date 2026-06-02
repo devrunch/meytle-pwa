@@ -124,7 +124,7 @@ export function AdminUsers() {
                     </div>
                   </td>
                   <td className="px-5 py-3" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
+                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                   </td>
                   <td className="px-5 py-3">
                     <IconChevronRight size={13} style={{ color: 'rgba(255,255,255,0.2)' }} />

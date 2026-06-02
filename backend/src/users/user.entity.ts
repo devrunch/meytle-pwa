@@ -51,6 +51,15 @@ export class User {
   })
   roles: UserRole[];
 
+  @Column({ name: 'email_verified', default: false })
+  emailVerified: boolean;
+
+  @Column({ name: 'email_otp', nullable: true, type: 'text' })
+  emailOtp: string | null;
+
+  @Column({ name: 'email_otp_expires_at', nullable: true, type: 'timestamptz' })
+  emailOtpExpiresAt: Date | null;
+
   @Column({ name: 'password_reset_token', nullable: true, type: 'text' })
   passwordResetToken: string | null;
 

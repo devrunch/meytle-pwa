@@ -27,6 +27,20 @@ export class AuthController {
     return user;
   }
 
+  @Post('send-email-otp')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  sendEmailOtp(@CurrentUser() user: User) {
+    return this.authService.sendEmailOtp(user.id).then(() => ({ message: 'OTP sent' }));
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  verifyEmail(@CurrentUser() user: User, @Body() body: { otp: string }) {
+    return this.authService.verifyEmail(user.id, body.otp);
+  }
+
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   forgotPassword(@Body() body: { email: string }) {

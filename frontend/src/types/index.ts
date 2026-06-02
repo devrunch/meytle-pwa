@@ -10,6 +10,7 @@ export interface User {
   interests?: string[] | null;
   photos?: string[] | null;
   roles: UserRole[];
+  emailVerified?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { IconArrowLeft, IconLoader2, IconDeviceFloppy, IconCheck } from '@tabler/icons-react';
+import { IconArrowLeft, IconLoader2, IconDeviceFloppy, IconCheck, IconSearch, IconMapPin, IconX } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import { client } from '../../api/client';
 import type { CompanionProfile } from '../../types';
@@ -61,6 +61,95 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   );
 }
 
+interface NominatimResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
+function parseEWKT(ewkt: string | null | undefined): { lat: string; lng: string } {
+  if (!ewkt) return { lat: '', lng: '' };
+  const match = ewkt.match(/POINT\(([^\s]+)\s+([^)]+)\)/);
+  if (!match) return { lat: '', lng: '' };
+  return { lng: match[1], lat: match[2] };
+}
+
+function LocationSearch({ onSelect }: { onSelect: (lat: string, lng: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<NominatimResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) { setResults([]); setOpen(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+        const data: NominatimResult[] = await res.json();
+        setResults(data);
+        setOpen(true);
+      } catch { /* ignore */ } finally { setSearching(false); }
+    }, 400);
+  }, [query]);
+
+  const pick = (r: NominatimResult) => {
+    onSelect(r.lat, r.lon);
+    setQuery(r.display_name.split(',')[0]);
+    setOpen(false);
+    setResults([]);
+  };
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.3)' }} />
+        <input
+          className={INPUT}
+          style={{ ...INPUT_STYLE, paddingLeft: '2rem' }}
+          placeholder="Search city or address…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => results.length > 0 && setOpen(true)}
+        />
+        {searching && <IconLoader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin" style={{ color: 'rgba(255,255,255,0.3)' }} />}
+        {!searching && query && (
+          <button onClick={() => { setQuery(''); setResults([]); setOpen(false); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.3)' }}>
+            <IconX size={13} />
+          </button>
+        )}
+      </div>
+      {open && results.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 mt-1.5 rounded-xl border overflow-hidden shadow-2xl"
+          style={{ background: '#0B1120', borderColor: 'rgba(255,255,255,0.12)' }}>
+          {results.map((r) => (
+            <button key={r.place_id} onClick={() => pick(r)}
+              className="w-full flex items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-white/5 transition-colors border-b last:border-0"
+              style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+              <IconMapPin size={13} className="shrink-0 mt-0.5" style={{ color: '#00D4AA' }} />
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                  {r.display_name.split(',')[0]}
+                </p>
+                <p className="text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  {r.display_name.split(',').slice(1, 3).join(',')}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminCompanionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -70,14 +159,15 @@ export function AdminCompanionDetail() {
   const [saving, setSaving] = useState(false);
   const [savingServices, setSavingServices] = useState(false);
 
-  // Form fields
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
-  const [hourlyRateRupees, setHourlyRateRupees] = useState('');
+  const [hourlyRateDollars, setHourlyRateDollars] = useState('');
   const [profileStatus, setProfileStatus] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [serviceAreaRadiusKm, setServiceAreaRadiusKm] = useState('');
+  const [serviceAreaLat, setServiceAreaLat] = useState('');
+  const [serviceAreaLng, setServiceAreaLng] = useState('');
   const [isAvailableNow, setIsAvailableNow] = useState(false);
   const [identityVerifiedByAdmin, setIdentityVerifiedByAdmin] = useState(false);
   const [stripePayoutsEnabled, setStripePayoutsEnabled] = useState(false);
@@ -93,10 +183,13 @@ export function AdminCompanionDetail() {
         setDisplayName(c.displayName);
         setBio(c.bio ?? '');
         setProfilePhotoUrl(c.profilePhotoUrl ?? '');
-        setHourlyRateRupees(String(c.hourlyRatePaisa / 100));
+        setHourlyRateDollars(String(c.hourlyRatePaisa / 100));
         setProfileStatus(c.profileStatus);
         setDateOfBirth(c.dateOfBirth ? String(c.dateOfBirth).slice(0, 10) : '');
         setServiceAreaRadiusKm(String(c.serviceAreaRadiusKm ?? 10));
+        const { lat, lng } = parseEWKT(c.serviceAreaCentre);
+        setServiceAreaLat(lat);
+        setServiceAreaLng(lng);
         setIsAvailableNow(c.isAvailableNow);
         setIdentityVerifiedByAdmin(c.identityVerifiedByAdmin ?? false);
         setStripePayoutsEnabled(c.stripePayoutsEnabled ?? false);
@@ -111,11 +204,11 @@ export function AdminCompanionDetail() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { data } = await client.patch<CompanionProfile>(`/admin/companions/${id}`, {
+      const payload: Record<string, any> = {
         displayName,
         bio: bio || null,
         profilePhotoUrl: profilePhotoUrl || null,
-        hourlyRatePaisa: Math.round(parseFloat(hourlyRateRupees) * 100),
+        hourlyRatePaisa: Math.round(parseFloat(hourlyRateDollars) * 100),
         profileStatus,
         dateOfBirth: dateOfBirth || null,
         serviceAreaRadiusKm: parseFloat(serviceAreaRadiusKm),
@@ -124,7 +217,12 @@ export function AdminCompanionDetail() {
         stripePayoutsEnabled,
         ratingAvg: ratingAvg ? parseFloat(ratingAvg) : undefined,
         ratingCount: ratingCount ? parseInt(ratingCount) : undefined,
-      });
+      };
+      if (serviceAreaLat && serviceAreaLng) {
+        payload.serviceAreaLat = parseFloat(serviceAreaLat);
+        payload.serviceAreaLng = parseFloat(serviceAreaLng);
+      }
+      const { data } = await client.patch<CompanionProfile>(`/admin/companions/${id}`, payload);
       setCompanion((prev) => ({ ...prev!, ...data }));
       toast.success('Companion saved');
     } catch (e: any) {
@@ -208,9 +306,9 @@ export function AdminCompanionDetail() {
             </Field>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Hourly Rate (₹)">
+              <Field label="Hourly Rate ($)">
                 <input type="number" className={INPUT} style={INPUT_STYLE}
-                  value={hourlyRateRupees} onChange={(e) => setHourlyRateRupees(e.target.value)} />
+                  value={hourlyRateDollars} onChange={(e) => setHourlyRateDollars(e.target.value)} />
               </Field>
               <Field label="Date of Birth">
                 <input type="date" className={INPUT} style={INPUT_STYLE}
@@ -218,22 +316,48 @@ export function AdminCompanionDetail() {
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Profile Photo URL">
-                <input className={INPUT} style={INPUT_STYLE} placeholder="https://…"
-                  value={profilePhotoUrl} onChange={(e) => setProfilePhotoUrl(e.target.value)} />
-              </Field>
-              <Field label="Service Area Radius (km)">
-                <input type="number" className={INPUT} style={INPUT_STYLE}
-                  value={serviceAreaRadiusKm} onChange={(e) => setServiceAreaRadiusKm(e.target.value)} />
-              </Field>
-            </div>
+            <Field label="Profile Photo URL">
+              <input className={INPUT} style={INPUT_STYLE} placeholder="https://…"
+                value={profilePhotoUrl} onChange={(e) => setProfilePhotoUrl(e.target.value)} />
+            </Field>
 
             {profilePhotoUrl && (
               <div className="flex items-center gap-3">
                 <img src={profilePhotoUrl} alt="" className="w-14 h-14 rounded-xl object-cover border" style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
                 <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>Photo preview</p>
               </div>
+            )}
+          </div>
+        </Section>
+
+        {/* Service Area */}
+        <Section title="Service Area">
+          <div className="space-y-4">
+            <Field label="Search Location">
+              <LocationSearch onSelect={(lat, lng) => { setServiceAreaLat(lat); setServiceAreaLng(lng); }} />
+            </Field>
+
+            <div className="grid grid-cols-3 gap-4">
+              <Field label="Latitude">
+                <input type="number" step="any" className={INPUT} style={INPUT_STYLE}
+                  placeholder="e.g. 40.7128"
+                  value={serviceAreaLat} onChange={(e) => setServiceAreaLat(e.target.value)} />
+              </Field>
+              <Field label="Longitude">
+                <input type="number" step="any" className={INPUT} style={INPUT_STYLE}
+                  placeholder="e.g. -74.0060"
+                  value={serviceAreaLng} onChange={(e) => setServiceAreaLng(e.target.value)} />
+              </Field>
+              <Field label="Radius (km)">
+                <input type="number" className={INPUT} style={INPUT_STYLE}
+                  value={serviceAreaRadiusKm} onChange={(e) => setServiceAreaRadiusKm(e.target.value)} />
+              </Field>
+            </div>
+
+            {serviceAreaLat && serviceAreaLng && (
+              <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                Center: {parseFloat(serviceAreaLat).toFixed(4)}, {parseFloat(serviceAreaLng).toFixed(4)} · Radius: {serviceAreaRadiusKm}km
+              </p>
             )}
           </div>
         </Section>

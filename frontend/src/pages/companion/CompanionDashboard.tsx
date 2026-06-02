@@ -15,15 +15,15 @@ import type { CompanionProfile, Booking, CompanionAvailability } from '../../typ
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function rupees(paisa: number) {
-  return `₹${(paisa / 100).toLocaleString('en-IN')}`;
+  return `$${(paisa / 100).toLocaleString('en-US')}`;
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
@@ -458,7 +458,9 @@ type StripeStatus = {
 };
 
 function VerificationSection({ profile }: { profile: CompanionProfile }) {
+  const navigate = useNavigate();
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
+  const [loadingLink, setLoadingLink]   = useState(false);
 
   useEffect(() => {
     if (!profile.stripeConnectedAccountId) return;
@@ -466,6 +468,19 @@ function VerificationSection({ profile }: { profile: CompanionProfile }) {
       .then((r) => setStripeStatus(r.data))
       .catch(() => {});
   }, [profile.stripeConnectedAccountId]);
+
+  const startIdentityVerification = async () => {
+    if (!profile.stripeConnectedAccountId) { navigate('/become-companion'); return; }
+    setLoadingLink(true);
+    try {
+      const { data } = await client.post<{ url: string }>('/companions/me/stripe-onboard');
+      window.location.href = data.url;
+    } catch {
+      toast.error('Could not start verification. Try again.');
+    } finally {
+      setLoadingLink(false);
+    }
+  };
 
   const isVerified =
     (profile.identityVerifiedByStripe ?? false) ||
@@ -524,9 +539,18 @@ function VerificationSection({ profile }: { profile: CompanionProfile }) {
           )}
           {!isVerified && urgentReqs.length === 0 && (
             <p className="text-[11px] text-muted leading-relaxed">
-              Complete your payout account setup to verify your identity automatically via Stripe.
+              Verify your identity via Stripe to build trust and go live faster.
             </p>
           )}
+          <button
+            onClick={startIdentityVerification}
+            disabled={loadingLink}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg,#635BFF,#0570DE)' }}>
+            {loadingLink
+              ? <><IconLoader2 size={15} className="animate-spin" /> Opening…</>
+              : <><IconBrandStripe size={15} /> Verify with Stripe</>}
+          </button>
         </div>
       )}
     </div>
@@ -713,7 +737,7 @@ export function CompanionDashboard() {
             <div className="flex items-center gap-4 mt-3 flex-wrap">
               <span className="flex items-center gap-1 text-sm font-semibold text-heading">
                 <IconCurrencyRupee size={15} />
-                {(profile.hourlyRatePaisa / 100).toLocaleString('en-IN')}/hr
+                {(profile.hourlyRatePaisa / 100).toLocaleString('en-US')}/hr
               </span>
               {profile.ratingAvg != null && profile.ratingCount != null && (
                 <span className="flex items-center gap-1 text-sm text-amber-500 font-semibold">

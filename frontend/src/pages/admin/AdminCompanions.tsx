@@ -140,7 +140,7 @@ export function AdminCompanions() {
                       </span>
                     </td>
                     <td className="px-4 py-3" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                      ₹{(c.hourlyRatePaisa / 100).toLocaleString('en-IN')}
+                      ${(c.hourlyRatePaisa / 100).toLocaleString('en-US')}
                     </td>
                     <td className="px-4 py-3">
                       {c.identityVerifiedByAdmin

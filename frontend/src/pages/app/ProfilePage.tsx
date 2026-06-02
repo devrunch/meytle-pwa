@@ -51,7 +51,7 @@ function IdentityCard({
 }) {
   const initial = fullName.trim()[0]?.toUpperCase() ?? '?';
   const formattedDob = user?.dateOfBirth
-    ? new Date(user.dateOfBirth + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? new Date(user.dateOfBirth + 'T00:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
 
   return (

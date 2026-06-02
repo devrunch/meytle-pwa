@@ -66,7 +66,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date', maxDa
   const yearRange = Array.from({ length: maxYear - minYear + 1 }, (_, i) => maxYear - i);
 
   const formatted = selected
-    ? selected.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? selected.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
     : '';
 
   return (

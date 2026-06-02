@@ -25,7 +25,7 @@ const STATUS_CFG: Record<string, { color: string; bg: string; label: string }> =
 };
 
 function rupees(p: number) {
-  return `₹${(p / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  return `$${(p / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
 export function AdminBookings() {
@@ -140,7 +140,7 @@ export function AdminBookings() {
                       </span>
                     </td>
                     <td className="px-4 py-3" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                      {new Date(b.bookedStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+                      {new Date(b.bookedStart).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: '2-digit' })}
                     </td>
                     <td className="px-4 py-3">
                       <IconChevronRight size={13} style={{ color: 'rgba(255,255,255,0.2)' }} />

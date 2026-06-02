@@ -14,6 +14,12 @@ export const authApi = {
   me: () =>
     client.get<User>('/auth/me').then((r) => r.data),
 
+  sendEmailOtp: () =>
+    client.post('/auth/send-email-otp').then((r) => r.data),
+
+  verifyEmail: (otp: string) =>
+    client.post<AuthTokens & { user: User }>('/auth/verify-email', { otp }).then((r) => r.data),
+
   forgotPassword: (email: string) =>
     client.post('/auth/forgot-password', { email }).then((r) => r.data),
 

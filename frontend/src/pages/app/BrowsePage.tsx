@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   IconSearch, IconStar, IconMapPin, IconLoader2,
   IconX, IconFilter, IconSparkles, IconShieldCheck,
+  IconCurrentLocation,
 } from '@tabler/icons-react';
 import { client } from '../../api/client';
 import type { CompanionProfile, ServiceType } from '../../types';
@@ -71,7 +72,7 @@ function CompanionCard({ companion }: { companion: CompanionProfile }) {
           <div className="absolute bottom-0 left-0 right-0 p-3">
             <p className="text-white font-semibold truncate">{companion.displayName}</p>
             <p className="text-white font-bold text-sm mt-0.5">
-              ₹{rate.toLocaleString('en-IN')}<span className="text-white/60 font-normal text-xs">/hr</span>
+              ${rate.toLocaleString('en-US')}<span className="text-white/60 font-normal text-xs">/hr</span>
             </p>
           </div>
         </div>
@@ -101,15 +102,63 @@ function CompanionCard({ companion }: { companion: CompanionProfile }) {
 
 function FilterSection({
   service, availableOnly, setParam,
+  nearMe, locating, onNearMe, onClearLocation, nearMeRadius, setNearMeRadius,
 }: {
   service: ServiceType | '';
   availableOnly: boolean;
   setParam: (k: string, v: string) => void;
+  nearMe: boolean;
+  locating: boolean;
+  onNearMe: () => void;
+  onClearLocation: () => void;
+  nearMeRadius: number;
+  setNearMeRadius: (r: number) => void;
 }) {
-  const hasFilters = !!(service || availableOnly);
+  const hasFilters = !!(service || availableOnly || nearMe);
 
   return (
     <div className="space-y-6">
+      {/* Near me */}
+      <div>
+        <p className="text-[11px] font-bold text-muted uppercase tracking-widest mb-3">Location</p>
+        {nearMe ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-xl border border-accent-green bg-surface-alt">
+              <span className="flex items-center gap-2 text-sm font-medium text-accent-green">
+                <IconCurrentLocation size={14} />
+                Near me
+              </span>
+              <button onClick={onClearLocation} className="text-muted hover:text-body">
+                <IconX size={13} />
+              </button>
+            </div>
+            <div className="px-1">
+              <div className="flex items-center justify-between text-[11px] text-muted mb-1.5">
+                <span>Radius</span>
+                <span className="font-semibold text-body">{nearMeRadius} km</span>
+              </div>
+              <input type="range" min={5} max={200} step={5}
+                value={nearMeRadius}
+                onChange={(e) => setNearMeRadius(Number(e.target.value))}
+                className="w-full accent-teal-500 cursor-pointer" />
+              <div className="flex justify-between text-[10px] text-muted mt-0.5">
+                <span>5 km</span><span>200 km</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={onNearMe}
+            disabled={locating}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted hover:border-accent-green/30 hover:bg-surface-alt transition-all disabled:opacity-50">
+            {locating
+              ? <IconLoader2 size={14} className="animate-spin" />
+              : <IconCurrentLocation size={14} />}
+            {locating ? 'Getting location…' : 'Near me'}
+          </button>
+        )}
+      </div>
+
       {/* Availability */}
       <div>
         <p className="text-[11px] font-bold text-muted uppercase tracking-widest mb-3">Availability</p>
@@ -153,7 +202,7 @@ function FilterSection({
       {/* Clear */}
       {hasFilters && (
         <button
-          onClick={() => { setParam('service', ''); setParam('available', ''); }}
+          onClick={() => { setParam('service', ''); setParam('available', ''); onClearLocation(); }}
           className="w-full flex items-center justify-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 py-2 rounded-xl transition-colors">
           <IconFilter size={12} /> Clear all filters
         </button>
@@ -169,10 +218,14 @@ export function BrowsePage() {
   const [companions, setCompanions] = useState<CompanionProfile[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [total,      setTotal]      = useState(0);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating,   setLocating]   = useState(false);
+  const [nearMeRadius, setNearMeRadius] = useState(25);
 
   const query        = searchParams.get('q') ?? '';
   const service      = (searchParams.get('service') ?? '') as ServiceType | '';
   const availableOnly = searchParams.get('available') === 'true';
+  const nearMe       = !!userCoords;
 
   const setParam = (key: string, val: string) => {
     const next = new URLSearchParams(searchParams);
@@ -180,16 +233,33 @@ export function BrowsePage() {
     setSearchParams(next, { replace: true });
   };
 
+  const handleNearMe = () => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false); },
+      ()    => { setLocating(false); },
+      { timeout: 8000 }
+    );
+  };
+
+  const clearLocation = () => setUserCoords(null);
+
   const load = useCallback(() => {
     setLoading(true);
-    const params: Record<string, string | boolean> = {};
-    if (service)      params.service      = service;
+    const params: Record<string, string | boolean | number> = {};
+    if (service)       params.service      = service;
     if (availableOnly) params.availableNow = true;
+    if (userCoords) {
+      params.lat      = userCoords.lat;
+      params.lng      = userCoords.lng;
+      params.radiusKm = nearMeRadius;
+    }
     client.get('/companions', { params })
       .then((r) => { setCompanions(r.data.data ?? []); setTotal(r.data.total ?? 0); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [service, availableOnly]);
+  }, [service, availableOnly, userCoords, nearMeRadius]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -199,7 +269,7 @@ export function BrowsePage() {
     c.bio?.toLowerCase().includes(query.toLowerCase())
   );
 
-  const activeFilterCount = [service, availableOnly ? 'a' : ''].filter(Boolean).length;
+  const activeFilterCount = [service, availableOnly ? 'a' : '', nearMe ? 'n' : ''].filter(Boolean).length;
 
   return (
     <div className="pb-10">
@@ -236,7 +306,11 @@ export function BrowsePage() {
                 </span>
               )}
             </p>
-            <FilterSection service={service} availableOnly={availableOnly} setParam={setParam} />
+            <FilterSection
+              service={service} availableOnly={availableOnly} setParam={setParam}
+              nearMe={nearMe} locating={locating} onNearMe={handleNearMe}
+              onClearLocation={clearLocation} nearMeRadius={nearMeRadius} setNearMeRadius={setNearMeRadius}
+            />
           </div>
         </aside>
 
@@ -262,6 +336,16 @@ export function BrowsePage() {
 
           {/* Mobile: horizontal chip filters */}
           <div className="lg:hidden flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-thin">
+            <button
+              onClick={nearMe ? clearLocation : handleNearMe}
+              disabled={locating}
+              className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                nearMe ? 'text-white border-transparent' : 'bg-surface border-border text-muted'
+              }`}
+              style={nearMe ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
+              {locating ? <IconLoader2 size={11} className="animate-spin" /> : <IconCurrentLocation size={11} />}
+              Near me
+            </button>
             <button onClick={() => setParam('service', '')}
               className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                 !service ? 'text-white border-transparent' : 'bg-surface border-border text-muted'
@@ -297,6 +381,14 @@ export function BrowsePage() {
                   className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-surface-alt text-accent-green border border-accent-green/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
                   Available now
+                  <IconX size={11} />
+                </button>
+              )}
+              {nearMe && (
+                <button onClick={clearLocation}
+                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-surface-alt text-accent-green border border-accent-green/30">
+                  <IconCurrentLocation size={11} />
+                  Within {nearMeRadius}km
                   <IconX size={11} />
                 </button>
               )}

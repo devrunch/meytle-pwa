@@ -206,7 +206,7 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
           <label className="text-[11px] font-semibold text-muted uppercase tracking-wide">
             Tip for companion <span className="text-red-500">*</span>
           </label>
-          {value.tip > 0 && <span className="text-[12px] font-bold text-accent-green">₹{value.tip.toLocaleString()} added</span>}
+          {value.tip > 0 && <span className="text-[12px] font-bold text-accent-green">${value.tip.toLocaleString()} added</span>}
         </div>
         <div className="flex gap-2 mb-2">
           {TIP_PRESETS.map((amt) => (
@@ -217,7 +217,7 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
                   ? 'border-accent-green bg-teal-50 text-teal-700'
                   : 'border-border text-muted hover:border-accent-green'
               }`}>
-              ₹{amt}
+              ${amt}
             </button>
           ))}
           <button type="button"
@@ -230,7 +230,7 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
         </div>
         {showCustomInput && (
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-muted">₹</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-muted">$</span>
             <input autoFocus type="text" inputMode="numeric" value={value.tipCustom}
               onChange={(e) => {
                 const raw = e.target.value;
@@ -299,7 +299,7 @@ function CompanionSidebar({ profile, step, selectedService, selectedDate, select
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-muted">Date</span>
               <span className="font-semibold text-heading">
-                {selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                {selectedDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
               </span>
             </div>
           )}
@@ -319,11 +319,11 @@ function CompanionSidebar({ profile, step, selectedService, selectedDate, select
             <>
               <div className="flex items-center justify-between pt-2 border-t border-border">
                 <span className="text-[13px] text-muted">Rate</span>
-                <span className="text-[13px] font-semibold text-heading">₹{priceHr.toLocaleString()}/hr</span>
+                <span className="text-[13px] font-semibold text-heading">${priceHr.toLocaleString()}/hr</span>
               </div>
               <div className="flex items-center justify-between bg-teal-50 rounded-xl px-3 py-2">
                 <span className="text-[13px] font-bold text-teal-700">Est. Total</span>
-                <span className="text-[15px] font-bold text-teal-700">₹{Math.round(total * 1.05).toLocaleString()}</span>
+                <span className="text-[15px] font-bold text-teal-700">${Math.round(total * 1.05).toLocaleString()}</span>
               </div>
             </>
           )}
@@ -419,7 +419,7 @@ function CheckoutForm({
         ) : submitting ? (
           <><IconLoader2 size={17} className="animate-spin" /> Confirming…</>
         ) : (
-          <><IconCheck size={17} stroke={2.5} /> Pay & Request · ₹{Math.round(totalPaisa / 100).toLocaleString('en-IN')}</>
+          <><IconCheck size={17} stroke={2.5} /> Pay & Request · ${Math.round(totalPaisa / 100).toLocaleString('en-US')}</>
         )}
       </button>
     </div>
@@ -682,7 +682,7 @@ export function BookingFlow() {
                   <h2 className="text-[18px] font-bold text-heading">Choose an experience</h2>
                   <p className="text-[13px] text-muted mt-1">
                     All services with {profile.displayName} are billed at{' '}
-                    <span className="font-semibold text-accent-green">₹{hourlyRate.toLocaleString()}/hr</span>
+                    <span className="font-semibold text-accent-green">${hourlyRate.toLocaleString()}/hr</span>
                   </p>
                 </div>
                 {services.length === 0 ? (
@@ -708,7 +708,7 @@ export function BookingFlow() {
                             <p className={`text-[14px] font-semibold ${selectedService === svc.serviceType ? 'text-teal-700' : 'text-heading'}`}>
                               {SERVICE_LABELS[svc.serviceType] ?? svc.serviceType}
                             </p>
-                            <p className="text-[11px] text-muted mt-0.5">₹{hourlyRate.toLocaleString()} / hour</p>
+                            <p className="text-[11px] text-muted mt-0.5">${hourlyRate.toLocaleString()} / hour</p>
                           </div>
                         </div>
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
@@ -781,7 +781,7 @@ export function BookingFlow() {
                             <span className="text-[15px] font-bold">{hrs}h</span>
                             {selectedTime && (
                               <span className={`text-[10px] ${duration === hrs ? 'text-white/80' : 'text-muted'}`}>
-                                ₹{(hourlyRate * hrs).toLocaleString()}
+                                ${(hourlyRate * hrs).toLocaleString()}
                               </span>
                             )}
                           </button>
@@ -867,7 +867,7 @@ export function BookingFlow() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {[
                       { icon: <IconCheck size={13} stroke={1.5} />,    label: 'Service', value: selectedService ? (SERVICE_LABELS[selectedService] ?? selectedService) : '—' },
-                      { icon: <IconCalendar size={13} stroke={1.5} />, label: 'Date',    value: selectedDate?.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) ?? '—' },
+                      { icon: <IconCalendar size={13} stroke={1.5} />, label: 'Date',    value: selectedDate?.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }) ?? '—' },
                       { icon: <IconClock size={13} stroke={1.5} />,    label: 'Time',    value: summaryTime },
                       { icon: <IconMapPin size={13} stroke={1.5} />,   label: 'Meet at', value: location || '—' },
                     ].map((row) => (
@@ -887,16 +887,16 @@ export function BookingFlow() {
                     <p className="text-[14px] font-bold text-heading mb-3">Price Breakdown</p>
                     <div className="flex flex-col gap-2.5">
                       <div className="flex justify-between text-[13px]">
-                        <span className="text-muted">₹{hourlyRate.toLocaleString()} × {duration} hr{duration > 1 ? 's' : ''}</span>
-                        <span className="font-semibold text-heading">₹{total.toLocaleString()}</span>
+                        <span className="text-muted">${hourlyRate.toLocaleString()} × {duration} hr{duration > 1 ? 's' : ''}</span>
+                        <span className="font-semibold text-heading">${total.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-[13px]">
                         <span className="text-muted">Platform fee (5%)</span>
-                        <span className="font-semibold text-heading">₹{Math.round(total * 0.05).toLocaleString()}</span>
+                        <span className="font-semibold text-heading">${Math.round(total * 0.05).toLocaleString()}</span>
                       </div>
                       <div className="border-t border-border pt-2.5 flex justify-between items-center">
                         <span className="text-[15px] font-bold text-heading">Total</span>
-                        <span className="text-[18px] font-bold text-teal-700">₹{Math.round(total * 1.05).toLocaleString()}</span>
+                        <span className="text-[18px] font-bold text-teal-700">${Math.round(total * 1.05).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -907,20 +907,20 @@ export function BookingFlow() {
                     <p className="text-[14px] font-bold text-heading mb-3">Price Breakdown</p>
                     <div className="flex flex-col gap-2.5">
                       <div className="flex justify-between text-[13px]">
-                        <span className="text-muted">₹{hourlyRate.toLocaleString()} × {customDurationHours} hr{customDurationHours > 1 ? 's' : ''}</span>
-                        <span className="font-semibold text-heading">₹{customServiceFee.toLocaleString()}</span>
+                        <span className="text-muted">${hourlyRate.toLocaleString()} × {customDurationHours} hr{customDurationHours > 1 ? 's' : ''}</span>
+                        <span className="font-semibold text-heading">${customServiceFee.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-[13px]">
                         <span className="text-muted">Platform fee (5%)</span>
-                        <span className="font-semibold text-heading">₹{Math.round(customServiceFee * 0.05).toLocaleString()}</span>
+                        <span className="font-semibold text-heading">${Math.round(customServiceFee * 0.05).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-[13px]">
                         <span className="text-muted">Companion tip</span>
-                        <span className="font-semibold text-heading">₹{customRequest.tip.toLocaleString()}</span>
+                        <span className="font-semibold text-heading">${customRequest.tip.toLocaleString()}</span>
                       </div>
                       <div className="border-t border-border pt-2.5 flex justify-between items-center">
                         <span className="text-[15px] font-bold text-heading">Total</span>
-                        <span className="text-[18px] font-bold text-teal-700">₹{customTotal.toLocaleString()}</span>
+                        <span className="text-[18px] font-bold text-teal-700">${customTotal.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>

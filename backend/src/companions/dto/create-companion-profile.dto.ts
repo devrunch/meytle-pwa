@@ -38,9 +38,10 @@ export class CreateCompanionProfileDto {
   @IsArray()
   serviceAreaCentre: [number, number];
 
+  @IsOptional()
   @IsNumber()
   @Min(1)
-  serviceAreaRadiusKm: number;
+  serviceAreaRadiusKm?: number;
 
   @IsArray()
   @IsEnum(ServiceType, { each: true })

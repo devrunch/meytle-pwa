@@ -25,7 +25,7 @@ function getToken(): string | null {
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-IN', {
+  return new Date(iso).toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit', hour12: true,
   });
 }
@@ -37,7 +37,7 @@ function fmtDay(iso: string) {
   yesterday.setDate(yesterday.getDate() - 1);
   if (d.toDateString() === today.toDateString()) return 'Today';
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 }
 
 // Group messages by day

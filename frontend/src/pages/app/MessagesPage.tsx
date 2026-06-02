@@ -21,7 +21,7 @@ const STATUS_CFG = {
 } as const;
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 }
 
 export function MessagesPage() {

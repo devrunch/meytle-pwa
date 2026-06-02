@@ -85,7 +85,7 @@ function CompanionCard({ companion }: { companion: CompanionProfile }) {
           <p className="text-white font-semibold text-sm truncate">{companion.displayName}</p>
           <div className="flex items-center justify-between mt-0.5">
             <p className="text-white/70 text-xs truncate">{services[0] ?? 'Companion'}</p>
-            <p className="text-white font-bold text-sm shrink-0 ml-2">₹{rate.toLocaleString('en-IN')}<span className="text-white/60 font-normal text-xs">/hr</span></p>
+            <p className="text-white font-bold text-sm shrink-0 ml-2">${rate.toLocaleString('en-US')}<span className="text-white/60 font-normal text-xs">/hr</span></p>
           </div>
         </div>
       </div>
@@ -111,8 +111,8 @@ function JourneyCard({ booking }: { booking: Booking }) {
   const cfg = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.pending;
   const companion = booking.companion;
   const date = new Date(booking.bookedStart);
-  const dateStr = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+  const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <Link to={`/bookings/${booking.id}`}

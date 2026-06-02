@@ -4,12 +4,13 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { User, UserRole } from '../users/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -21,6 +22,8 @@ const MIN_AGE_YEARS = 18;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly jwt: JwtService,
@@ -88,6 +91,37 @@ export class AuthService {
       user.roles = [...user.roles, UserRole.ADMIN];
       await this.users.save(user);
     }
+    return this.issueToken(user);
+  }
+
+  async sendEmailOtp(userId: string): Promise<void> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    if (user.emailVerified) return;
+
+    const otp = String(randomInt(100000, 1000000));
+    user.emailOtp = otp;
+    user.emailOtpExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await this.users.save(user);
+
+    if (process.env.NODE_ENV !== 'production') this.logger.debug(`[DEV] OTP for ${user.id}: ${otp}`);
+    await this.mail.send(user.email, 'Your Meytle verification code', this.mail.emailOtp(otp, user.fullName));
+  }
+
+  async verifyEmail(userId: string, otp: string): Promise<{ accessToken: string; user: ReturnType<typeof this.sanitise> }> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+
+    if (!user.emailOtp || !user.emailOtpExpiresAt || user.emailOtpExpiresAt < new Date()) {
+      throw new BadRequestException('Code is invalid or has expired');
+    }
+    if (user.emailOtp !== otp) throw new BadRequestException('Incorrect code');
+
+    user.emailVerified = true;
+    user.emailOtp = null;
+    user.emailOtpExpiresAt = null;
+    await this.users.save(user);
+
     return this.issueToken(user);
   }
 

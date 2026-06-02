@@ -39,6 +39,18 @@ export class AdminUpdateCompanionDto {
   @IsOptional()
   serviceAreaRadiusKm?: number;
 
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  @IsOptional()
+  serviceAreaLat?: number;
+
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  @IsOptional()
+  serviceAreaLng?: number;
+
   @IsBoolean()
   @IsOptional()
   identityVerifiedByAdmin?: boolean;

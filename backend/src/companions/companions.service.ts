@@ -37,7 +37,7 @@ export class CompanionsService {
       (key.startsWith('sk_test_') || key.startsWith('sk_live_')) &&
       key.length > 20;
     if (keyValid) {
-      this.stripe = new Stripe(key, { apiVersion: '2026-05-27.dahlia' });
+      this.stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' });
       this.logger.log(
         `Stripe initialised — key ${key.slice(0, 12)}...${key.slice(-4)}`,
       );
@@ -62,7 +62,7 @@ export class CompanionsService {
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
         profilePhotoUrl: dto.profilePhotoUrl ?? null,
         hourlyRatePaisa: dto.hourlyRatePaisa,
-        serviceAreaRadiusKm: dto.serviceAreaRadiusKm,
+        serviceAreaRadiusKm: dto.serviceAreaRadiusKm ?? 50,
       });
       await em.save(p);
 

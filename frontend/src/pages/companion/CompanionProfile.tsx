@@ -182,7 +182,7 @@ export function CompanionProfilePage() {
   const handleSave = async () => {
     if (!displayName.trim()) { toast.error('Display name is required'); return; }
     if (services.length === 0) { toast.error('Select at least one service'); return; }
-    if (hourlyRate < 500) { toast.error('Minimum rate is ₹500/hr'); return; }
+    if (hourlyRate < 500) { toast.error('Minimum rate is $500/hr'); return; }
 
     setSaving(true);
     try {
@@ -469,7 +469,7 @@ export function CompanionProfilePage() {
       <Section icon={IconCurrencyRupee} title="Hourly Rate">
         <div className="text-center mb-5">
           <div className="inline-flex items-center gap-1">
-            <span className="text-2xl font-bold text-muted">₹</span>
+            <span className="text-2xl font-bold text-muted">$</span>
             <input
               type="number"
               value={hourlyRate}
@@ -488,7 +488,7 @@ export function CompanionProfilePage() {
                 hourlyRate === r ? 'text-white border-transparent' : 'border-border text-muted hover:border-accent-green/40'
               }`}
               style={hourlyRate === r ? { background: 'linear-gradient(135deg,#00D4AA,#4F8CFF)' } : {}}>
-              ₹{r.toLocaleString('en-IN')}
+              ${r.toLocaleString('en-US')}
             </button>
           ))}
         </div>

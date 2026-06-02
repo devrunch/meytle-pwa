@@ -8,6 +8,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { HomePage } from './pages/app/HomePage';
 import { BrowsePage } from './pages/app/BrowsePage';
 import { ProfilePage } from './pages/app/ProfilePage';
@@ -60,6 +61,9 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
+
+        {/* Email verification — needs token but not yet verified */}
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         {/* Protected app */}
         <Route element={<AuthGuard />}>
