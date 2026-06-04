@@ -18,6 +18,7 @@ import { PreparePaymentDto } from './dto/prepare-payment.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { MailService } from '../mail/mail.service';
+import { PushService } from '../push/push.service';
 
 function fmtDate(d: Date) {
   return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -36,6 +37,7 @@ export class BookingsService {
     @InjectRepository(CompanionProfile) private readonly companions: Repository<CompanionProfile>,
     private readonly dataSource: DataSource,
     private readonly mail: MailService,
+    private readonly push: PushService,
     private readonly config: ConfigService,
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY');
@@ -115,6 +117,10 @@ export class BookingsService {
     }
 
     const bookedStart = new Date(dto.bookedStart);
+    const minStart = new Date(Date.now() + 60 * 60 * 1000);
+    if (bookedStart < minStart) {
+      throw new BadRequestException('Booking must be at least 1 hour from now');
+    }
     const bookedEnd   = new Date(bookedStart.getTime() + dto.bookedDurationMinutes * 60_000);
     const [lng, lat]  = dto.meetingSpot;
 
@@ -141,6 +147,30 @@ export class BookingsService {
       `UPDATE bookings SET meeting_spot = ST_GeomFromEWKT($1) WHERE id = $2`,
       [`SRID=4326;POINT(${lng} ${lat})`, booking.id],
     );
+
+    // Notify companion of new request
+    const full = await this.bookings.findOne({
+      where: { id: booking.id },
+      relations: { user: true, companion: { user: true } },
+    });
+    if (full?.companion?.user) {
+      const appUrl = this.config.get<string>('APP_URL', 'http://localhost:5173');
+      const companionUser = full.companion.user;
+      const userName = full.user?.fullName ?? 'Someone';
+      const service = full.serviceType.replace('_', ' ');
+      // Email
+      await this.mail.send(
+        companionUser.email,
+        `New booking request from ${userName}`,
+        this.mail.bookingRequestCompanion(full.companion.displayName, userName, service, fmtDate(full.bookedStart), appUrl),
+      );
+      // Push
+      await this.push.sendToUser(companionUser.id, {
+        title: 'New booking request 🎉',
+        body: `${userName} wants to book you for ${service} on ${fmtDate(full.bookedStart)}`,
+        url: '/companion/dashboard',
+      });
+    }
 
     return booking;
   }
@@ -213,7 +243,7 @@ export class BookingsService {
       where: { id: bookingId },
       relations: { user: true, companion: true },
     });
-    if (full?.user?.email) {
+    if (full?.user) {
       await this.mail.send(
         full.user.email,
         'Your booking is confirmed! 🎉',
@@ -224,6 +254,11 @@ export class BookingsService {
           fmtTime(full.bookedStart),
         ),
       );
+      await this.push.sendToUser(full.user.id, {
+        title: 'Booking confirmed! 🎉',
+        body: `Your session with ${full.companion?.displayName ?? 'your companion'} on ${fmtDate(full.bookedStart)} is confirmed.`,
+        url: '/bookings',
+      });
     }
 
     return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
@@ -249,7 +284,7 @@ export class BookingsService {
       where: { id: bookingId },
       relations: { user: true, companion: true },
     });
-    if (full?.user?.email) {
+    if (full?.user) {
       await this.mail.send(
         full.user.email,
         'Booking request declined',
@@ -259,6 +294,11 @@ export class BookingsService {
           fmtDate(full.bookedStart),
         ),
       );
+      await this.push.sendToUser(full.user.id, {
+        title: 'Booking declined',
+        body: `${full.companion?.displayName ?? 'The companion'} couldn't accept your request for ${fmtDate(full.bookedStart)}.`,
+        url: '/bookings',
+      });
     }
 
     return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
@@ -281,6 +321,24 @@ export class BookingsService {
       cancelledAt:        new Date(),
       cancellationReason: dto.reason,
     });
+
+    const cancelFull = await this.bookings.findOne({
+      where: { id: bookingId },
+      relations: { user: true, companion: { user: true } },
+    });
+    if (cancelFull?.companion?.user) {
+      const cu = cancelFull.companion.user;
+      await this.mail.send(
+        cu.email,
+        'Booking cancelled',
+        this.mail.bookingCancelledCompanion(cancelFull.companion.displayName, cancelFull.user?.fullName ?? 'A client', fmtDate(cancelFull.bookedStart)),
+      );
+      await this.push.sendToUser(cu.id, {
+        title: 'Booking cancelled',
+        body: `${cancelFull.user?.fullName ?? 'A client'} cancelled their booking for ${fmtDate(cancelFull.bookedStart)}.`,
+        url: '/companion/dashboard',
+      });
+    }
 
     return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
   }
@@ -317,6 +375,18 @@ export class BookingsService {
       otpVerifiedAt: actualStart,
     });
 
+    const otpFull = await this.bookings.findOne({
+      where: { id: bookingId },
+      relations: { user: true, companion: true },
+    });
+    if (otpFull?.user) {
+      await this.push.sendToUser(otpFull.user.id, {
+        title: 'Session started!',
+        body: `Your session with ${otpFull.companion?.displayName ?? 'your companion'} has begun.`,
+        url: `/bookings/${bookingId}/chat`,
+      });
+    }
+
     return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
   }
 
@@ -333,6 +403,23 @@ export class BookingsService {
       status:    BookingStatus.COMPLETED,
       actualEnd: new Date(),
     });
+
+    const endFull = await this.bookings.findOne({
+      where: { id: bookingId },
+      relations: { user: true, companion: true },
+    });
+    if (endFull?.user) {
+      await this.mail.send(
+        endFull.user.email,
+        'Your session is complete ✅',
+        this.mail.sessionCompleted(endFull.user.fullName, endFull.companion?.displayName ?? 'your companion', fmtDate(endFull.bookedStart)),
+      );
+      await this.push.sendToUser(endFull.user.id, {
+        title: 'Session complete ✅',
+        body: `Your session with ${endFull.companion?.displayName ?? 'your companion'} has ended. Leave a review!`,
+        url: '/bookings',
+      });
+    }
 
     return this.bookings.findOne({ where: { id: bookingId } }) as Promise<Booking>;
   }

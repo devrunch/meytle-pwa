@@ -63,6 +63,39 @@ export class MailService {
       </div>`;
   }
 
+  bookingRequestCompanion(companionName: string, userName: string, service: string, date: string, appUrl: string): string {
+    const [c, u, s, d, url] = [companionName, userName, service, date, appUrl].map((v) => this.esc(v));
+    return `
+      <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
+        <h2 style="color:#0F172A;margin:0 0 8px">New booking request 🎉</h2>
+        <p style="color:#64748B;margin:0 0 24px">Hi ${c}, <b>${u}</b> wants to book you for <b>${s}</b> on ${d}.</p>
+        <a href="${url}/companion/dashboard" style="display:inline-block;background:linear-gradient(135deg,#00D4AA,#4F8CFF);color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:600;font-size:15px;">Review Request</a>
+        <p style="color:#94A3B8;font-size:12px;margin-top:24px;">Log in to accept or decline within 24 hours.</p>
+      </div>`;
+  }
+
+  sessionCompleted(userName: string, companionName: string, date: string): string {
+    const [u, c, d] = [userName, companionName, date].map((v) => this.esc(v));
+    return `
+      <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
+        <h2 style="color:#0F172A;margin:0 0 8px">Session completed ✅</h2>
+        <p style="color:#64748B;margin:0 0 24px">Hi ${u}, your session with <b>${c}</b> on ${d} has ended.</p>
+        <p style="color:#64748B;font-size:14px;">We hope you had a great time! Leave a review to help ${c} grow on Meytle.</p>
+        <p style="color:#64748B;font-size:13px;margin-top:24px;">— The Meytle Team</p>
+      </div>`;
+  }
+
+  bookingCancelledCompanion(companionName: string, userName: string, date: string): string {
+    const [c, u, d] = [companionName, userName, date].map((v) => this.esc(v));
+    return `
+      <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
+        <h2 style="color:#D97706;margin:0 0 8px">Booking cancelled</h2>
+        <p style="color:#64748B;margin:0 0 24px">Hi ${c}, <b>${u}</b> has cancelled their booking for ${d}.</p>
+        <p style="color:#64748B;font-size:14px;">No payment has been processed. Your slot is now free.</p>
+        <p style="color:#64748B;font-size:13px;margin-top:24px;">— The Meytle Team</p>
+      </div>`;
+  }
+
   passwordReset(resetUrl: string): string {
     const url = this.esc(resetUrl);
     return `

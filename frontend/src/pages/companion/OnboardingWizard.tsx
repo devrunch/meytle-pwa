@@ -11,12 +11,12 @@ import {
 } from '@tabler/icons-react';
 import { loadConnectAndInitialize } from '@stripe/connect-js';
 import { ConnectComponentsProvider, ConnectAccountOnboarding } from '@stripe/react-connect-js';
-import { MapContainer, TileLayer, Circle, CircleMarker, Tooltip, ZoomControl, useMap, useMapEvents, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, ZoomControl, useMap, useMapEvents, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import toast from 'react-hot-toast';
 import { client } from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
-import type { ServiceType, ServiceArea, CompanionProfile } from '../../types';
+import type { ServiceType, CompanionProfile } from '../../types';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ const SERVICES: {
   { value: 'gaming',   label: 'Gaming',   icon: IconDeviceGamepad,  desc: 'Gaming sessions & esports' },
 ];
 
-const RATE_PRESETS = [500, 800, 1000, 1500, 2000];
+const RATE_PRESETS = [20, 30, 50, 75, 100];
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -198,7 +198,7 @@ const INITIAL: FormData = {
   interests: [],
   prompt: { question: '', answer: '' },
   services: [],
-  hourlyRate: 1000,
+  hourlyRate: 20,
   areaLabel: '',
   radiusKm: undefined,
   coords: [0, 0],
@@ -246,7 +246,7 @@ function LivePreviewCard({ data }: { data: FormData }) {
       </div>
 
       {/* Rate badge */}
-      {data.hourlyRate >= 500 && (
+      {data.hourlyRate >= 20 && (
         <div className="absolute top-3 left-3 bg-black/30 backdrop-blur-sm px-2 py-1 rounded-full">
           <span className="text-[10px] text-white font-bold">
             ${data.hourlyRate.toLocaleString('en-US')}/hr
@@ -710,7 +710,7 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
       <StepHeader
         icon={IconCurrencyRupee}
         title="Set your rate"
-        sub="You can change this anytime. Minimum $500/hour."
+        sub="You can change this anytime. Minimum $20/hour."
       />
       <div className="text-center mb-6">
         <div className="inline-flex items-center gap-1">
@@ -718,9 +718,9 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
           <input
             type="number"
             value={data.hourlyRate}
-            min={500}
-            max={10000}
-            onChange={(e) => onChange({ hourlyRate: Math.max(500, +e.target.value || 500) })}
+            min={20}
+            max={100}
+            onChange={(e) => onChange({ hourlyRate: Math.max(20, Math.min(100, +e.target.value || 20)) })}
             className="text-5xl font-extrabold text-heading w-36 text-center bg-transparent outline-none border-b-2 border-border focus:border-accent-green/60 transition-colors [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
           />
           <span className="text-xl text-muted self-end mb-2">/hr</span>
@@ -759,24 +759,6 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
 
 // ── Map helpers ────────────────────────────────────────────────────────────────
 
-function MapCityFit({ areas, activeCity }: { areas: ServiceArea[]; activeCity: string }) {
-  const map = useMap();
-  const prev = useRef<string>('');
-  useEffect(() => {
-    if (activeCity === prev.current) return;
-    prev.current = activeCity;
-    const pts = areas.filter((a) => a.city === activeCity);
-    if (pts.length === 0) return;
-    if (pts.length === 1) {
-      map.setView([pts[0].lat, pts[0].lng], 12, { animate: true });
-    } else {
-      map.fitBounds(pts.map((a) => [a.lat, a.lng] as [number, number]), {
-        padding: [50, 50], maxZoom: 12, animate: true,
-      });
-    }
-  }, [activeCity, areas, map]);
-  return null;
-}
 
 const pinIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',

@@ -29,6 +29,7 @@ import { AdminCompanionDetail } from './pages/admin/AdminCompanionDetail';
 import { AdminBookings } from './pages/admin/AdminBookings';
 import { AdminBookingDetail } from './pages/admin/AdminBookingDetail';
 import { useAuthStore } from './store/authStore';
+import { usePushNotifications } from './hooks/usePushNotifications';
 
 function RootRedirect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)();
@@ -37,6 +38,7 @@ function RootRedirect() {
 
 export default function App() {
   const refreshUser = useAuthStore((s) => s.refreshUser);
+  usePushNotifications();
 
   useEffect(() => {
     refreshUser();

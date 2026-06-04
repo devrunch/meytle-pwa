@@ -105,8 +105,8 @@ export function ChatPage() {
     const token = getToken();
     if (!token) return;
 
-    const socketUrl = import.meta.env.VITE_API_URL ?? '';
-    const socket = io(socketUrl, {
+    const socketBase = import.meta.env.VITE_API_URL ?? '';
+    const socket = io(`${socketBase}/messages`, {
       path: '/socket.io',
       auth: { token },
       transports: ['websocket', 'polling'],

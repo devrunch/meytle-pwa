@@ -11,6 +11,7 @@ import { CompanionProfile } from '../companions/companion-profile.entity';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { MailModule } from '../mail/mail.module';
+import { PushModule } from '../push/push.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { MailModule } from '../mail/mail.module';
     ]),
     ScheduleModule.forRoot(),
     MailModule,
+    PushModule,
   ],
   controllers: [BookingsController],
   providers: [BookingsService],

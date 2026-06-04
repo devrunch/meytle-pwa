@@ -31,7 +31,7 @@ export class CreateCompanionProfileDto {
   profilePhotoUrl?: string;
 
   @IsNumber()
-  @Min(50000)
+  @Min(2000)
   hourlyRatePaisa: number;
 
   // GeoJSON point: [lng, lat]

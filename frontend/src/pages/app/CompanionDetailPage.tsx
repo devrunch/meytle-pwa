@@ -142,6 +142,26 @@ export function CompanionDetailPage() {
   if (profile.profilePhotoUrl) photos.push(profile.profilePhotoUrl);
   if (user?.photos) for (const p of user.photos) { if (p && !photos.includes(p)) photos.push(p); }
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/companions/${profile.id}`;
+    const shareData = {
+      title: `${profile.displayName} on Meytle`,
+      text: `Check out ${profile.displayName}'s profile on Meytle`,
+      url,
+    };
+    try {
+      if (navigator.share && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success('Link copied!');
+      }
+    } catch {
+      await navigator.clipboard.writeText(url).catch(() => {});
+      toast.success('Link copied!');
+    }
+  };
+
   function bookNow() {
     const params = activeService ? `?service=${activeService}` : '';
     navigate(`/companions/${profile!.id}/book${params}`);
@@ -163,7 +183,7 @@ export function CompanionDetailPage() {
               <IconHeart size={14} stroke={1.5} className={saved ? 'fill-amber-500 text-amber-500' : ''} />
               {saved ? 'Saved' : 'Save'}
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-[12px] font-medium text-muted hover:border-heading hover:text-heading transition-colors">
+            <button onClick={handleShare} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-[12px] font-medium text-muted hover:border-heading hover:text-heading transition-colors">
               <IconShare size={14} stroke={1.5} /> Share
             </button>
           </div>
@@ -192,7 +212,7 @@ export function CompanionDetailPage() {
               <IconHeart size={17} stroke={1.5}
                 className={saved ? 'fill-amber-500 text-amber-500' : 'text-heading'} />
             </button>
-            <button className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow">
+            <button onClick={handleShare} className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow">
               <IconShare size={17} stroke={1.5} className="text-heading" />
             </button>
           </div>

@@ -12,8 +12,6 @@ export function VerifyEmailPage() {
   const navigate   = useNavigate();
   const user       = useAuthStore((s) => s.user);
   const setAuth    = useAuthStore((s) => s.setAuth);
-  const token      = useAuthStore((s) => s.token);
-
   const [digits, setDigits]     = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [verifying, setVerify]  = useState(false);
   const [sending, setSending]   = useState(false);

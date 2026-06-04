@@ -27,7 +27,7 @@ export class UpdateCompanionProfileDto {
 
   @IsOptional()
   @IsNumber()
-  @Min(50000)
+  @Min(2000)
   hourlyRatePaisa?: number;
 
   @IsOptional()

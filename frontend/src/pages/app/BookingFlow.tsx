@@ -33,7 +33,7 @@ const CUSTOM_TIME_OPTIONS = [
   '6:00 PM','7:00 PM','8:00 PM','9:00 PM','10:00 PM',
 ];
 
-const TIP_PRESETS = [100, 200, 500];
+const TIP_PRESETS = [20, 50, 100];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -512,7 +512,14 @@ export function BookingFlow() {
     if (!slot) return [];
     const from = timeToHour(slot.fromTime);
     const to   = timeToHour(slot.toTime);
-    return Array.from({ length: to - from }, (_, i) => hourToSlot(from + i));
+    const now  = new Date();
+    const isToday =
+      selectedDate.getFullYear() === now.getFullYear() &&
+      selectedDate.getMonth()    === now.getMonth() &&
+      selectedDate.getDate()     === now.getDate();
+    const minHour = isToday ? now.getHours() + 1 + (now.getMinutes() > 0 ? 1 : 0) : 0;
+    return Array.from({ length: to - from }, (_, i) => hourToSlot(from + i))
+      .filter((s) => parseSlot(s) >= minHour);
   }, [selectedDate, dateAvailable, availability]);
 
   const mapCentre = useMemo(

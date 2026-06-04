@@ -30,6 +30,8 @@ import { UploadsModule } from './uploads/uploads.module'
 import { ServiceArea } from './service-areas/service-area.entity'
 import { ServiceAreasModule } from './service-areas/service-areas.module'
 import { AdminModule } from './admin/admin.module'
+import { PushModule } from './push/push.module'
+import { PushSubscription } from './push/push-subscription.entity'
 
 const entities = [
   User,
@@ -40,6 +42,7 @@ const entities = [
   Notification,
   PlatformConfig,
   ServiceArea,
+  PushSubscription,
 ]
 
 @Module({
@@ -70,6 +73,7 @@ const entities = [
     UploadsModule,
     ServiceAreasModule,
     AdminModule,
+    PushModule,
   ],
 })
 export class AppModule {}
