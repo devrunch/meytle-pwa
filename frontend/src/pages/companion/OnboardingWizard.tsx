@@ -1362,7 +1362,7 @@ export function OnboardingWizard() {
     if (step === 4) return true;   // interests optional
     if (step === 5) return true;   // prompt optional
     if (step === 6) return data.services.length >= 1;
-    if (step === 7) return data.hourlyRate >= 500;
+    if (step === 7) return data.hourlyRate >= 20;
     if (step === 8) return data.coords[0] !== 0 || data.coords[1] !== 0;
     if (step === 9) return true;   // availability optional
     if (step === 11) return true;  // identity optional

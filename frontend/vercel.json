@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://srv1307295.hstgr.cloud/api/:path*"
+      "destination": "https://meytle.com/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://srv1307295.hstgr.cloud/uploads/:path*"
+      "destination": "https://meytle.com/uploads/:path*"
     },
     {
       "source": "/(.*)",
