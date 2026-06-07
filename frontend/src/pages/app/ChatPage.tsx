@@ -105,7 +105,7 @@ export function ChatPage() {
     const token = getToken();
     if (!token) return;
 
-    const socketBase = import.meta.env.VITE_API_URL ?? '';
+    const socketBase = import.meta.env.VITE_API_URL ?? window.location.origin;
     const socket = io(`${socketBase}/messages`, {
       path: '/socket.io',
       auth: { token },
