@@ -52,6 +52,13 @@ interface Review {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function parseEwkt(ewkt: string | null | undefined): { lat: number; lng: number } | null {
+  if (!ewkt) return null;
+  const m = ewkt.match(/POINT\(([+-]?\d+\.?\d*)\s+([+-]?\d+\.?\d*)\)/i);
+  if (!m) return null;
+  return { lng: parseFloat(m[1]), lat: parseFloat(m[2]) };
+}
+
 function calcAge(dob: string | null | undefined): number | null {
   if (!dob) return null;
   return Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
@@ -83,6 +90,7 @@ export function CompanionDetailPage() {
   const [heroImgError, setHeroImgError] = useState(false);
   const [saved, setSaved]               = useState(false);
   const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [areaLabel, setAreaLabel]       = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -96,6 +104,18 @@ export function CompanionDetailPage() {
         setAvailability(avail);
         setReviews(revs);
         setSelectedService(prof.services?.[0]?.serviceType ?? null);
+        const coords = parseEwkt(prof.serviceAreaCentre);
+        if (coords) {
+          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json`, {
+            headers: { 'Accept-Language': 'en' },
+          })
+            .then((r) => r.json())
+            .then((d) => {
+              const label = d.address?.city || d.address?.town || d.address?.village || d.address?.county || d.address?.state || '';
+              setAreaLabel(label);
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => {
         toast.error('Companion not found');
@@ -293,7 +313,7 @@ export function CompanionDetailPage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <IconMapPin size={13} stroke={1.5} className="text-muted" />
-                  <span className="text-[14px] text-muted">Delhi NCR · {profile.serviceAreaRadiusKm} km radius</span>
+                  <span className="text-[14px] text-muted">{areaLabel || 'Location set'}</span>
                 </div>
               </div>
               <div className="md:hidden flex items-center gap-1 bg-amber-50 rounded-lg px-3 py-2 shrink-0">

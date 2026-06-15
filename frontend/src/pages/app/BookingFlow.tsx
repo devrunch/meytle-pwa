@@ -278,7 +278,7 @@ function CompanionSidebar({ profile, step, selectedService, selectedDate, select
           )}
           <div>
             <p className="text-[16px] font-bold text-heading">{profile.displayName}</p>
-            <p className="text-[12px] text-muted">Delhi NCR</p>
+            {areaLabel && <p className="text-[12px] text-muted">{areaLabel}</p>}
             {(profile.ratingAvg ?? 0) > 0 && (
               <div className="flex items-center gap-1 mt-0.5">
                 <IconStar size={11} stroke={0} fill="#F59E0B" color="#F59E0B" />
@@ -439,6 +439,7 @@ export function BookingFlow() {
   const [submitting, setSubmitting]   = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [totalPaisa, setTotalPaisa]   = useState(0);
+  const [areaLabel, setAreaLabel]     = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -450,6 +451,18 @@ export function BookingFlow() {
       .then(([prof, svcs, avail]) => {
         setProfile({ ...prof, services: svcs as CompanionService[] });
         setAvailability(avail);
+        const coords = parseEwktCentre(prof.serviceAreaCentre);
+        if (coords) {
+          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json`, {
+            headers: { 'Accept-Language': 'en' },
+          })
+            .then((r) => r.json())
+            .then((d) => {
+              const label = d.address?.city || d.address?.town || d.address?.village || d.address?.county || d.address?.state || '';
+              setAreaLabel(label);
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => { toast.error('Companion not found'); navigate(-1); })
       .finally(() => setLoadingProfile(false));
@@ -868,7 +881,7 @@ export function BookingFlow() {
                     )}
                     <div>
                       <p className="text-[15px] font-bold text-heading">{profile.displayName}</p>
-                      <p className="text-[12px] text-muted">Delhi NCR</p>
+                      {areaLabel && <p className="text-[12px] text-muted">{areaLabel}</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
