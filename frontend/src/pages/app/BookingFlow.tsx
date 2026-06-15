@@ -249,7 +249,7 @@ function CustomBookingPanel({ value, onChange }: { value: CustomRequest; onChang
 
 // ── Companion sidebar (desktop) ───────────────────────────────────────────────
 
-function CompanionSidebar({ profile, step, selectedService, selectedDate, selectedTime, duration, location, total }: {
+function CompanionSidebar({ profile, step, selectedService, selectedDate, selectedTime, duration, location, total, areaLabel }: {
   profile: CompanionProfile;
   step: number;
   selectedService: string | null;
@@ -258,6 +258,7 @@ function CompanionSidebar({ profile, step, selectedService, selectedDate, select
   duration: number;
   location: string;
   total: number;
+  areaLabel: string;
 }) {
   const steps   = ['Choose Service', 'Date & Time', 'Meeting Spot', 'Confirm & Pay'];
   const initials = profile.displayName.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -690,6 +691,7 @@ export function BookingFlow() {
               duration={duration}
               location={location}
               total={total}
+              areaLabel={areaLabel}
             />
           </div>
 
