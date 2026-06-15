@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconArrowLeft, IconArrowRight, IconCamera, IconLoader2, IconCheck,
-  IconMapPin, IconCurrencyRupee, IconStar, IconX, IconUser,
+  IconMapPin, IconCurrencyDollar, IconStar, IconX, IconUser,
   IconFileText, IconLayoutGrid, IconRocket, IconCircleCheck,
   IconCoffee, IconToolsKitchen2, IconMusic, IconPlane, IconRun,
   IconPalette, IconLeaf, IconMovie, IconShoppingBag, IconDeviceGamepad,
@@ -346,7 +346,7 @@ function LeftPanel({ step, data }: { step: number; data: FormData }) {
       <div className="flex items-center gap-4">
         {[
           { label: '100% verified', icon: IconCheck },
-          { label: 'Earn on your terms', icon: IconCurrencyRupee },
+          { label: 'Earn on your terms', icon: IconCurrencyDollar },
         ].map(({ label, icon: Icon }) => (
           <div key={label} className="flex items-center gap-1.5 text-white/60 text-xs">
             <Icon size={12} className="text-white/50" />
@@ -389,7 +389,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
         </p>
         <div className="grid grid-cols-3 gap-3 mt-8 max-w-sm">
           {[
-            { icon: IconCurrencyRupee, label: 'Set your rate' },
+            { icon: IconCurrencyDollar, label: 'Set your rate' },
             { icon: IconStar, label: 'Your schedule' },
             { icon: IconCircleCheck, label: 'Safe & verified' },
           ].map(({ icon: Icon, label }) => (
@@ -708,7 +708,7 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
   return (
     <div>
       <StepHeader
-        icon={IconCurrencyRupee}
+        icon={IconCurrencyDollar}
         title="Set your rate"
         sub="You can change this anytime. Minimum $20/hour."
       />
@@ -1029,7 +1029,7 @@ function StepReview({
         {[
           { icon: IconUser,        label: 'Display name', val: data.displayName },
           { icon: IconMapPin,      label: 'Location',     val: data.areaLabel || 'Not set' },
-          { icon: IconCurrencyRupee, label: 'Hourly rate', val: `$${data.hourlyRate.toLocaleString('en-US')}/hr` },
+          { icon: IconCurrencyDollar, label: 'Hourly rate', val: `$${data.hourlyRate.toLocaleString('en-US')}/hr` },
           { icon: IconLayoutGrid,  label: 'Services',     val: `${data.services.length} selected` },
           { icon: IconClock,       label: 'Availability', val: enabledDays.length > 0 ? enabledDays.join(', ') : 'Not set' },
         ].map(({ icon: Icon, label, val }) => (
@@ -1218,7 +1218,7 @@ function StepPayout({ onDone, onSkip }: { onDone: () => void; onSkip: () => void
           {[
             { icon: IconWallet,         text: 'Direct bank transfers' },
             { icon: IconCheck,          text: 'Auto payouts after sessions' },
-            { icon: IconCurrencyRupee,  text: 'INR payouts supported' },
+            { icon: IconCurrencyDollar,  text: 'USD payouts supported' },
             { icon: IconClock,          text: '2-7 business days' },
           ].map(({ icon: Icon, text }) => (
             <div key={text} className="flex items-center gap-2 text-xs text-body">
@@ -1276,7 +1276,7 @@ function StepPayout({ onDone, onSkip }: { onDone: () => void; onSkip: () => void
         {[
           { icon: IconWallet,        text: 'Direct bank transfer' },
           { icon: IconCheck,         text: 'Auto payouts after sessions' },
-          { icon: IconCurrencyRupee, text: 'INR payouts supported' },
+          { icon: IconCurrencyDollar, text: 'USD payouts supported' },
           { icon: IconClock,         text: '2-7 business days' },
         ].map(({ icon: Icon, text }) => (
           <div key={text} className="flex items-center gap-2 text-xs text-muted">
