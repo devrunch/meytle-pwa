@@ -25,8 +25,12 @@ client.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('auth-store');
-      window.location.href = '/login';
+      const raw = localStorage.getItem('auth-store');
+      const hasToken = raw ? !!JSON.parse(raw)?.state?.token : false;
+      if (hasToken) {
+        localStorage.removeItem('auth-store');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   },
