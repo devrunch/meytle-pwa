@@ -38,7 +38,7 @@ const SERVICES: {
   { value: 'gaming',   label: 'Gaming',   icon: IconDeviceGamepad,  desc: 'Gaming sessions & esports' },
 ];
 
-const RATE_PRESETS = [20, 30, 50, 75, 100];
+const RATE_PRESETS = [15, 25, 50, 75, 100];
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -198,7 +198,7 @@ const INITIAL: FormData = {
   interests: [],
   prompt: { question: '', answer: '' },
   services: [],
-  hourlyRate: 20,
+  hourlyRate: 15,
   areaLabel: '',
   radiusKm: undefined,
   coords: [0, 0],
@@ -710,7 +710,7 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
       <StepHeader
         icon={IconCurrencyDollar}
         title="Set your rate"
-        sub="You can change this anytime. Minimum $20/hour."
+        sub="You can change this anytime. Minimum $15/hour."
       />
       <div className="text-center mb-6">
         <div className="inline-flex items-center gap-1">
@@ -718,9 +718,7 @@ function StepRate({ data, onChange }: { data: FormData; onChange: (d: Partial<Fo
           <input
             type="number"
             value={data.hourlyRate}
-            min={20}
-            max={100}
-            onChange={(e) => onChange({ hourlyRate: Math.max(20, Math.min(100, +e.target.value || 20)) })}
+            onChange={(e) => onChange({ hourlyRate: +e.target.value || 15 })}
             className="text-5xl font-extrabold text-heading w-36 text-center bg-transparent outline-none border-b-2 border-border focus:border-accent-green/60 transition-colors [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
           />
           <span className="text-xl text-muted self-end mb-2">/hr</span>
@@ -1362,7 +1360,7 @@ export function OnboardingWizard() {
     if (step === 4) return true;   // interests optional
     if (step === 5) return true;   // prompt optional
     if (step === 6) return data.services.length >= 1;
-    if (step === 7) return data.hourlyRate >= 20;
+    if (step === 7) return data.hourlyRate >= 15;
     if (step === 8) return data.coords[0] !== 0 || data.coords[1] !== 0;
     if (step === 9) return true;   // availability optional
     if (step === 11) return true;  // identity optional
