@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   IconArrowLeft, IconCheck, IconCalendar, IconClock, IconCreditCard,
   IconShieldCheck, IconChevronLeft, IconChevronRight, IconMessageCircle,
-  IconAlertCircle, IconMapPin, IconX, IconStar, IconUsers, IconLoader2,
+  IconAlertCircle, IconMapPin, IconStar, IconUsers, IconLoader2,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import { loadStripe } from '@stripe/stripe-js';
@@ -828,7 +828,7 @@ export function BookingFlow() {
                 <div>
                   <h2 className="text-[18px] font-bold text-heading">Where should you meet?</h2>
                   <p className="text-[13px] text-muted mt-1">
-                    Tap the map to pin a spot. Shared with {profile.displayName} after confirmation.
+                    Search an address or tap the map to drop a pin. Shared with {profile.displayName} after confirmation.
                   </p>
                 </div>
 
@@ -840,21 +840,6 @@ export function BookingFlow() {
                   onChange={(v) => { setLocationPick(v); setLocation(v.text); }}
                   onClear={() => { setLocationPick(null); setLocation(''); }}
                 />
-
-                <div className="relative">
-                  <IconMapPin size={15} stroke={1.5}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-accent-green" />
-                  <input type="text" value={location}
-                    onChange={(e) => { setLocation(e.target.value); setLocationPick(null); }}
-                    placeholder="Or type a place name / address…"
-                    className="w-full h-12 pl-10 pr-10 rounded-xl bg-white border border-border text-[13px] text-heading placeholder:text-muted focus:outline-none focus:border-accent-green transition-colors" />
-                  {location && (
-                    <button onClick={() => { setLocation(''); setLocationPick(null); }}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2">
-                      <IconX size={14} stroke={1.5} className="text-muted" />
-                    </button>
-                  )}
-                </div>
               </div>
             )}
 

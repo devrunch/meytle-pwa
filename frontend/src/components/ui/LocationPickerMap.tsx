@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Circle, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { IconLoader2, IconMapPin, IconX } from '@tabler/icons-react';
+import { IconLoader2, IconMapPin, IconX, IconSearch } from '@tabler/icons-react';
 
 // ── Fix Leaflet default icon in Vite ─────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,7 +21,7 @@ const pinIcon = L.divIcon({
   popupAnchor: [0, -22],
 });
 
-// ── Reverse geocode via Nominatim ─────────────────────────────────────────────
+// ── Reverse geocode ───────────────────────────────────────────────────────────
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const res = await fetch(
@@ -31,7 +31,6 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
     if (!res.ok) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     const json = await res.json();
     const a = json.address ?? {};
-    // Build a concise label: neighbourhood / road, city
     const parts: string[] = [];
     const primary = a.neighbourhood || a.suburb || a.road || a.pedestrian || a.hamlet;
     const city = a.city || a.town || a.village || a.county;
@@ -43,13 +42,39 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
   }
 }
 
-// ── Click handler inside the map ──────────────────────────────────────────────
+// ── Forward geocode search ────────────────────────────────────────────────────
+interface NominatimResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
+async function searchPlaces(query: string): Promise<NominatimResult[]> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } },
+    );
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+// ── Map sub-components ────────────────────────────────────────────────────────
 function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
   useMapEvents({ click: (e) => onPick(e.latlng.lat, e.latlng.lng) });
   return null;
 }
 
-// ── Re-center helper ──────────────────────────────────────────────────────────
+function FlyTo({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => { map.flyTo([lat, lng], 15, { duration: 1 }); }, [lat, lng, map]);
+  return null;
+}
+
 function Recenter({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   const prevRef = useRef<string>('');
@@ -68,7 +93,6 @@ export interface PickedLocation {
 }
 
 interface Props {
-  /** Centre of companion's service area [lat, lng] */
   centerLat: number;
   centerLng: number;
   radiusKm: number;
@@ -79,17 +103,80 @@ interface Props {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function LocationPickerMap({ centerLat, centerLng, radiusKm, value, onChange, onClear }: Props) {
-  const [geocoding, setGeocoding] = useState(false);
+  const [geocoding, setGeocoding]     = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [results, setResults]         = useState<NominatimResult[]>([]);
+  const [searching, setSearching]     = useState(false);
+  const [flyTarget, setFlyTarget]     = useState<{ lat: number; lng: number } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePick = async (lat: number, lng: number) => {
     setGeocoding(true);
     const text = await reverseGeocode(lat, lng);
     onChange({ lat, lng, text });
     setGeocoding(false);
+    setResults([]);
+    setSearchQuery('');
+  };
+
+  const handleSearchInput = useCallback((q: string) => {
+    setSearchQuery(q);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!q.trim()) { setResults([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      const r = await searchPlaces(q);
+      setResults(r);
+      setSearching(false);
+    }, 400);
+  }, []);
+
+  const handleSelectResult = (r: NominatimResult) => {
+    const lat = parseFloat(r.lat);
+    const lng = parseFloat(r.lon);
+    const label = r.display_name.split(',').slice(0, 3).join(',').trim();
+    onChange({ lat, lng, text: label });
+    setFlyTarget({ lat, lng });
+    setSearchQuery('');
+    setResults([]);
   };
 
   return (
     <div className="space-y-2">
+      {/* Search bar */}
+      <div className="relative">
+        <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => handleSearchInput(e.target.value)}
+          placeholder="Search a place or address…"
+          className="w-full h-10 pl-9 pr-9 rounded-xl bg-white border border-border text-[13px] text-heading placeholder:text-muted focus:outline-none focus:border-accent-green transition-colors"
+        />
+        {searching && (
+          <IconLoader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted animate-spin" />
+        )}
+        {searchQuery && !searching && (
+          <button onClick={() => { setSearchQuery(''); setResults([]); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2">
+            <IconX size={14} className="text-muted" />
+          </button>
+        )}
+
+        {/* Dropdown results */}
+        {results.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded-xl shadow-lg z-1000 overflow-hidden">
+            {results.map((r) => (
+              <button key={r.place_id} onClick={() => handleSelectResult(r)}
+                className="w-full text-left px-3 py-2.5 hover:bg-surface-alt transition-colors border-b border-border/50 last:border-0 flex items-start gap-2">
+                <IconMapPin size={13} className="text-accent-green shrink-0 mt-0.5" />
+                <span className="text-[12px] text-heading leading-snug line-clamp-2">{r.display_name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Map */}
       <div className="relative rounded-xl overflow-hidden border border-border" style={{ height: 220 }}>
         <MapContainer
@@ -100,28 +187,24 @@ export function LocationPickerMap({ centerLat, centerLng, radiusKm, value, onCha
           attributionControl={false}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <Recenter lat={centerLat} lng={centerLng} />
+          {flyTarget && <FlyTo lat={flyTarget.lat} lng={flyTarget.lng} />}
 
-          {/* Service area circle */}
           <Circle
             center={[centerLat, centerLng]}
             radius={radiusKm * 1000}
             pathOptions={{ color: '#00D4AA', fillColor: '#00D4AA', fillOpacity: 0.08, weight: 1.5, dashArray: '5,5' }}
           />
 
-          {/* Picked pin */}
           {value && <Marker position={[value.lat, value.lng]} icon={pinIcon} />}
-
           <ClickHandler onPick={handlePick} />
         </MapContainer>
 
-        {/* Hint overlay */}
         {!value && (
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-sm text-white text-[10px] font-medium px-3 py-1.5 rounded-full pointer-events-none whitespace-nowrap">
-            Tap map to drop meeting pin
+            Search above or tap map to drop pin
           </div>
         )}
 
-        {/* Geocoding spinner */}
         {geocoding && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm">
             <IconLoader2 size={20} className="animate-spin text-teal-500" />
