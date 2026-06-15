@@ -153,7 +153,7 @@ export function CompanionDetailPage() {
   const userBio       = user?.bio ?? '';
   const promptQ       = PROMPTS.find((p) => userBio.startsWith(p)) ?? null;
   const promptA       = promptQ ? userBio.slice(promptQ.length + 1).trim() : null;
-  const isSelf        = profile.userId === currentUser?.id;
+  const isSelf        = !!currentUser?.id && profile.userId === currentUser.id;
   const isVerified    = (profile.identityVerifiedByStripe ?? false) ||
                         (profile.identityVerifiedByVeriff ?? false) ||
                         (profile.identityVerifiedByAdmin  ?? false);
