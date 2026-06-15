@@ -565,7 +565,7 @@ export function CompanionDetailPage() {
 
       {/* Mobile sticky footer */}
       {!isSelf && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border px-4 py-3 z-30">
+        <div className="md:hidden fixed bottom-16 left-0 right-0 bg-white border-t border-border px-4 py-3 z-40 shadow-lg">
           <div className="flex items-center gap-3">
             <div>
               <p className="text-[10px] text-muted">Hourly rate</p>
@@ -582,7 +582,7 @@ export function CompanionDetailPage() {
           </div>
         </div>
       )}
-      {!isSelf && <div className="md:hidden h-20" />}
+      {!isSelf && <div className="md:hidden h-32" />}
 
     </div>
   );
