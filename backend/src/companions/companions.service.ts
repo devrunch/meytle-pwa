@@ -363,8 +363,10 @@ export class CompanionsService {
           eventuallyDue: reqs?.eventually_due ?? [],
         },
       };
-    } catch {
-      return { payoutsEnabled: false, identityVerified: false, requirements: { currentlyDue: [], pastDue: [], eventuallyDue: [] } };
+    } catch (err) {
+      const msg = (err as { raw?: { message?: string }; message?: string })?.raw?.message ?? (err as Error)?.message ?? String(err);
+      console.error('[syncStripePayoutStatus] Stripe error:', msg);
+      throw new InternalServerErrorException(`Stripe error: ${msg}`);
     }
   }
 
