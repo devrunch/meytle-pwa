@@ -525,16 +525,16 @@ export function LandingPage() {
               <p className="text-xs text-muted mt-2 leading-relaxed">Meaningful companionship for every experience.</p>
             </div>
             {[
-              { title: 'Company', links: ['About Us', 'Careers', 'Press'] },
-              { title: 'Safety', links: ['Safety Center', 'Verification', 'Privacy', 'Guidelines'] },
-              { title: 'Support', links: ['Help Center', 'Contact Us', 'Trust & Safety', 'Community'] },
-              { title: 'Legal', links: ['Terms of Service', 'Privacy Policy', 'Cookie Policy', 'Refund Policy'] },
+              { title: 'Company', links: [{ label: 'About Us', href: '#' }, { label: 'Careers', href: '#' }, { label: 'Press', href: '#' }] },
+              { title: 'Safety', links: [{ label: 'Safety Center', href: '#' }, { label: 'Verification', href: '#' }, { label: 'Privacy', href: '/privacy' }, { label: 'Guidelines', href: '#' }] },
+              { title: 'Support', links: [{ label: 'Help Center', href: '#' }, { label: 'Contact Us', href: '#' }, { label: 'Trust & Safety', href: '#' }, { label: 'Community', href: '#' }] },
+              { title: 'Legal', links: [{ label: 'Terms of Service', href: '/terms' }, { label: 'Privacy Policy', href: '/privacy' }, { label: 'Cookie Policy', href: '#' }, { label: 'Refund Policy', href: '#' }] },
             ].map(({ title, links }) => (
               <div key={title}>
                 <p className="text-[11px] font-bold text-heading uppercase tracking-wider mb-3">{title}</p>
                 <div className="flex flex-col gap-2">
-                  {links.map((l) => (
-                    <a key={l} href="#" className="text-xs text-muted hover:text-body transition-colors">{l}</a>
+                  {links.map(({ label, href }) => (
+                    <a key={label} href={href} className="text-xs text-muted hover:text-body transition-colors">{label}</a>
                   ))}
                 </div>
               </div>
