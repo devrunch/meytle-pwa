@@ -30,6 +30,8 @@ import { AdminBookings } from './pages/admin/AdminBookings';
 import { AdminBookingDetail } from './pages/admin/AdminBookingDetail';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
+import { AboutPage } from './pages/AboutPage';
+import { ContactPage } from './pages/ContactPage';
 import { useAuthStore } from './store/authStore';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
@@ -103,6 +105,8 @@ export default function App() {
 
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

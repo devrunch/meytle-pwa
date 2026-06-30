@@ -525,10 +525,8 @@ export function LandingPage() {
               <p className="text-xs text-muted mt-2 leading-relaxed">Meaningful companionship for every experience.</p>
             </div>
             {[
-              { title: 'Company', links: [{ label: 'About Us', href: '#' }, { label: 'Careers', href: '#' }, { label: 'Press', href: '#' }] },
-              { title: 'Safety', links: [{ label: 'Safety Center', href: '#' }, { label: 'Verification', href: '#' }, { label: 'Privacy', href: '/privacy' }, { label: 'Guidelines', href: '#' }] },
-              { title: 'Support', links: [{ label: 'Help Center', href: '#' }, { label: 'Contact Us', href: '#' }, { label: 'Trust & Safety', href: '#' }, { label: 'Community', href: '#' }] },
-              { title: 'Legal', links: [{ label: 'Terms of Service', href: '/terms' }, { label: 'Privacy Policy', href: '/privacy' }, { label: 'Cookie Policy', href: '#' }, { label: 'Refund Policy', href: '#' }] },
+              { title: 'Company', links: [{ label: 'About Us', href: '/about' }, { label: 'Contact', href: '/contact' }] },
+              { title: 'Legal', links: [{ label: 'Terms of Service', href: '/terms' }, { label: 'Privacy Policy', href: '/privacy' }] },
             ].map(({ title, links }) => (
               <div key={title}>
                 <p className="text-[11px] font-bold text-heading uppercase tracking-wider mb-3">{title}</p>
