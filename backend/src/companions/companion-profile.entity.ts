@@ -109,7 +109,7 @@ export class CompanionProfile {
   @Column({ name: 'agreed_to_terms_at', type: 'timestamptz', nullable: true })
   agreedToTermsAt: Date | null;
 
-  @Column({ name: 'agreement_ip', nullable: true })
+  @Column({ name: 'agreement_ip', type: 'varchar', nullable: true })
   agreementIp: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
