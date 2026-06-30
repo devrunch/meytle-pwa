@@ -164,6 +164,7 @@ const STEP_COPY = [
   { headline: 'You control\nthe terms',            sub: 'Fair, transparent pricing that works for your schedule.' },
   { headline: 'Be discoverable\nlocally',          sub: 'Nearby clients book faster and leave better reviews.' },
   { headline: 'Set your\nschedule',                sub: "Clients see when you're open — more bookings, fewer surprises." },
+  { headline: 'One last\nstep',                   sub: 'Read and accept the Companion Agreement to complete your registration.' },
   { headline: 'Almost there —\nyou\'re ready',    sub: 'Review your profile before we send it for verification.' },
   { headline: 'Build trust\ninstantly',            sub: 'A verified badge makes clients feel safe — and boosts bookings.' },
   { headline: 'Get paid for\nevery session',       sub: 'Connect your bank account so we can send you money instantly.' },
@@ -189,6 +190,7 @@ interface FormData {
   slots: DaySlot[];
   selfieUrl: string;
   govtIdFrontUrl: string;
+  agreed: boolean;
 }
 
 const INITIAL: FormData = {
@@ -206,10 +208,11 @@ const INITIAL: FormData = {
   slots: Array(7).fill(null).map(() => ({ ...DEFAULT_SLOT })),
   selfieUrl: '',
   govtIdFrontUrl: '',
+  agreed: false,
 };
 
-// Steps: 0=welcome 1=name 2=bio 3=photo 4=interests 5=prompt 6=services 7=rate 8=location 9=availability 10=review 11=identity 12=payout
-const TOTAL_STEPS = 13;
+// Steps: 0=welcome 1=name 2=bio 3=photo 4=interests 5=prompt 6=services 7=rate 8=location 9=availability 10=agreement 11=review 12=identity 13=payout
+const TOTAL_STEPS = 14;
 
 // ── Left panel: live preview ────────────────────────────────────────────────────
 
@@ -969,6 +972,233 @@ function StepAvailability({ data, onChange }: { data: FormData; onChange: (d: Pa
   );
 }
 
+// ── Step 10: Companion Agreement ───────────────────────────────────────────────
+
+const AGREEMENT_TEXT = `MEYTLE — COMPANION AGREEMENT
+For registered service providers on the Meytle platform
+Operated by ZEPHYR GROUP OF COMPANIES LIMITED
+Effective Date: 15 May 2025
+
+IMPORTANT: By completing the Companion registration process and ticking the acceptance box, you agree to be legally bound by this Companion Agreement in addition to Meytle's general Terms and Conditions and Privacy Policy. Please read this document carefully before registering.
+
+1. INTRODUCTION
+
+This Companion Agreement ("Agreement") is entered into between ZEPHYR GROUP OF COMPANIES LIMITED (trading as "Meytle") and you, the individual or entity registering as a Companion on the Meytle platform ("you" or "Companion").
+
+This Agreement governs your registration, listing, and provision of services through the Meytle platform at meytle.com ("Platform"). It supplements and should be read together with Meytle's general Terms and Conditions and Privacy Policy.
+
+In the event of any conflict between this Agreement and the general Terms and Conditions, this Agreement takes precedence in relation to Companion-specific matters.
+
+2. NATURE OF THE RELATIONSHIP
+
+2.1 Independent Contractor
+You are an independent contractor, not an employee, agent, partner, or franchisee of ZEPHYR GROUP OF COMPANIES LIMITED. Nothing in this Agreement creates any employment relationship. You have no authority to bind Meytle to any contract or obligation.
+
+2.2 Platform as Intermediary
+Meytle provides a technology platform that connects you with potential Clients. Meytle is not a party to any service agreement you enter into with a Client. We do not direct, supervise, or control how you deliver your services.
+
+2.3 No Exclusivity
+This Agreement does not prevent you from offering your services outside of the Meytle platform, provided you do not solicit Meytle Clients to take transactions off-platform (see Section 10).
+
+3. ELIGIBILITY & REGISTRATION
+
+3.1 Eligibility Requirements
+To register and remain active as a Companion, you must:
+• Be at least 18 years of age;
+• Be legally permitted to offer and provide services in the jurisdiction(s) where you operate;
+• Provide accurate, truthful, and complete registration information;
+• Pass any identity verification process required by Meytle from time to time;
+• Maintain a valid payment account capable of receiving payouts;
+• Comply with all applicable laws, regulations, and licensing requirements in your jurisdiction.
+
+3.2 Identity Verification
+Meytle may require you to submit government-issued identification and/or other verification documents prior to or at any time during your registration. We reserve the right to decline or suspend any Companion who fails to satisfactorily complete verification.
+
+3.3 Accurate Information
+You warrant that all information you provide during registration and in your profile is accurate, current, and not misleading. You must promptly update your information if it changes.
+
+4. COMPANION PROFILE & LISTINGS
+
+4.1 Profile Standards
+Your profile and all service listings must:
+• Accurately describe the services you offer;
+• Use clear, professional, and respectful language;
+• Include only photos that genuinely represent you and/or your services;
+• Not include any content that is false, misleading, defamatory, offensive, or illegal;
+• Not include personal contact information in public-facing profile fields;
+• Not include pricing or payment terms that circumvent the Platform's booking and payment system.
+
+4.2 Prohibited Listing Content
+You must not include in any listing or profile:
+• Explicit sexual content or solicitation of sexual services;
+• Content that discriminates on the basis of race, gender, religion, sexual orientation, disability, or any other protected characteristic;
+• Content that promotes illegal activity;
+• Another person's image, name, or identity without their written consent;
+• Misleading pricing, fake availability, or manufactured reviews.
+
+4.3 Meytle's Right to Edit or Remove
+Meytle reserves the right to edit, remove, or decline to publish any listing or profile content that, in our sole discretion, violates this Agreement, our community standards, or applicable law.
+
+5. SERVICES & CONDUCT
+
+5.1 Permitted Services
+Companions may offer any lawful personal service through the Platform, including but not limited to social companionship, travel companionship, event attendance, dining accompaniment, guided experiences, wellness services, language tutoring, fitness coaching, and other lifestyle services.
+
+5.2 Prohibited Services
+You must not offer, advertise, or provide any services that:
+• Are illegal in the jurisdiction where the service is delivered or received;
+• Involve sexual services of any nature where prohibited by local law;
+• Involve the supply of controlled substances;
+• Involve minors in any capacity;
+• Involve deception, coercion, or exploitation of any person.
+
+Meytle operates a zero-tolerance policy on services involving exploitation or illegal conduct. Violations will result in immediate permanent account termination and may be reported to relevant law enforcement authorities.
+
+5.3 Professional Conduct
+When delivering services to Clients, you agree to:
+• Behave professionally, respectfully, and safely at all times;
+• Honour confirmed bookings or provide reasonable advance notice of cancellation;
+• Communicate clearly and honestly with Clients;
+• Not engage in any behaviour that would damage the reputation of the Meytle platform;
+• Not request or accept payment for services outside the Platform's payment system.
+
+5.4 Safety
+Your personal safety is important to us. You are encouraged to meet new Clients in public places, share your location with a trusted person, and report any unsafe behaviour immediately to companions@meytle.com. Meytle will take all reported safety concerns seriously.
+
+6. BOOKINGS & CANCELLATIONS
+
+6.1 Accepting Bookings
+When you accept a booking through the Platform, you enter into a direct service agreement with the Client. You are responsible for honouring that commitment.
+
+6.2 Cancellations by You
+If you need to cancel a confirmed booking, you must cancel through the Platform as early as possible and provide the Client with reasonable notice (minimum 24 hours where possible). Meytle reserves the right to apply cancellation penalties or restrict your account if you have an excessive cancellation rate.
+
+6.3 No-Shows
+Failure to appear for a confirmed booking without prior cancellation constitutes a no-show and may result in account suspension or termination.
+
+7. PAYMENTS & COMMISSION
+
+7.1 Platform Commission
+Meytle charges a commission on each completed booking. The applicable rate is displayed in your Companion dashboard. We reserve the right to update commission rates with at least 14 days' prior notice.
+
+7.2 How Payouts Work
+Your earnings (booking amount minus commission) will be processed to your nominated payment account after a booking is completed and any applicable holding period has passed.
+
+7.3 Disputed Payments
+If you believe a payout is incorrect, you must contact us within 14 days at companions@meytle.com. We will investigate and respond within 10 business days.
+
+7.4 Withholding
+Meytle reserves the right to withhold or reverse payouts where a booking is disputed, where fraud is suspected, or where you are in breach of this Agreement.
+
+8. TAX OBLIGATIONS
+
+Meytle does not withhold any taxes on your behalf. As an independent contractor, you are solely responsible for registering with relevant tax authorities, declaring all income earned through the Platform, paying all applicable income tax, and complying with any GST, VAT, or equivalent obligations in your jurisdiction.
+
+9. INSURANCE & LIABILITY
+
+9.1 Your Insurance Responsibility
+You are strongly advised to obtain and maintain appropriate insurance coverage, which may include public liability, professional indemnity, and personal accident insurance.
+
+9.2 No Platform Insurance
+Meytle does not provide any insurance coverage for Companions or their activities.
+
+9.3 Limitation of Liability
+To the maximum extent permitted by law, ZEPHYR GROUP OF COMPANIES LIMITED's total liability to you shall not exceed the total commission fees paid by you to Meytle in the three months preceding the relevant event.
+
+10. OFF-PLATFORM TRANSACTIONS
+
+Taking transactions off the Meytle Platform is strictly prohibited and constitutes a material breach of this Agreement. This prohibition applies during the period you are a registered Companion and for 12 months after your account is closed or terminated. Breaches may result in immediate account termination, a claim for damages, and legal action.
+
+11. RATINGS, REVIEWS & STANDARDS
+
+Clients may leave ratings and reviews after a completed booking. These are displayed publicly on your profile. Attempting to manipulate reviews is a serious breach of this Agreement and will result in immediate account termination.
+
+12. INTELLECTUAL PROPERTY & CONTENT
+
+By uploading content to the Platform, you grant ZEPHYR GROUP OF COMPANIES LIMITED a worldwide, royalty-free, non-exclusive licence to use, display, reproduce, and distribute that content solely for the purposes of operating and promoting the Platform.
+
+13. CONFIDENTIALITY & CLIENT PRIVACY
+
+You agree to use Client personal information only for the purpose of delivering the booked service, and not to store, share, sell, or misuse Client personal information.
+
+14. SUSPENSION & TERMINATION
+
+Meytle may suspend or permanently terminate your account immediately and without prior notice if you breach any material term of this Agreement, engage in fraudulent or illegal conduct, or pose a safety risk. You may also close your account at any time by contacting companions@meytle.com.
+
+15. GOVERNING LAW
+
+This Agreement is governed by the laws of New Zealand. Any disputes shall be subject to the non-exclusive jurisdiction of the New Zealand courts.
+
+16. CONTACT
+
+Companion Support: companions@meytle.com
+Legal: legal@meytle.com
+Website: https://meytle.com`;
+
+function StepAgreement({ data, onChange }: { data: FormData; onChange: (d: Partial<FormData>) => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [reachedBottom, setReachedBottom] = useState(false);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) {
+      setReachedBottom(true);
+    }
+  }, []);
+
+  return (
+    <div>
+      <StepHeader
+        icon={IconFileText}
+        title="Companion Agreement"
+        sub="Read the agreement in full, then tick the box below to accept."
+      />
+
+      <div className="relative rounded-2xl border border-border overflow-hidden mb-4">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="h-72 overflow-y-auto p-5 bg-surface text-[12px] text-body leading-relaxed font-mono whitespace-pre-wrap"
+          style={{ scrollbarWidth: 'thin' }}
+        >
+          {AGREEMENT_TEXT}
+        </div>
+
+        {!reachedBottom && (
+          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none flex items-end justify-center pb-2">
+            <span className="text-[10px] text-muted font-medium flex items-center gap-1">
+              <IconChevronDown size={12} /> Scroll to read full agreement
+            </span>
+          </div>
+        )}
+      </div>
+
+      <label className={`flex items-start gap-3 p-4 rounded-xl border transition-colors cursor-pointer select-none ${
+        reachedBottom
+          ? 'border-accent-green/40 bg-teal-50/60 hover:bg-teal-50'
+          : 'border-border bg-surface-alt opacity-50 cursor-not-allowed pointer-events-none'
+      }`}>
+        <div className={`w-5 h-5 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+          data.agreed ? 'bg-accent-green border-accent-green' : 'border-border bg-white'
+        }`}>
+          {data.agreed && <IconCheck size={12} className="text-white" strokeWidth={3} />}
+        </div>
+        <input
+          type="checkbox"
+          className="sr-only"
+          disabled={!reachedBottom}
+          checked={data.agreed}
+          onChange={(e) => onChange({ agreed: e.target.checked })}
+        />
+        <span className="text-[12px] text-body leading-relaxed">
+          I have read and understood the Companion Agreement in full and agree to be legally bound by its terms. I confirm I meet all eligibility requirements and that all information I have provided is accurate.
+        </span>
+      </label>
+    </div>
+  );
+}
+
 // ── Step 8: Review ─────────────────────────────────────────────────────────────
 
 function StepReview({
@@ -1363,7 +1593,8 @@ export function OnboardingWizard() {
     if (step === 7) return data.hourlyRate >= 15;
     if (step === 8) return data.coords[0] !== 0 || data.coords[1] !== 0;
     if (step === 9) return true;   // availability optional
-    if (step === 11) return true;  // identity optional
+    if (step === 10) return data.agreed;
+    if (step === 12) return true;  // identity optional
     return true;
   };
 
@@ -1420,12 +1651,12 @@ export function OnboardingWizard() {
       if (token) setAuth(token, me.data);
 
       toast.success('Profile created! Now set up your payouts.');
-      goTo(12, 'forward');
+      goTo(13, 'forward');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       if (typeof msg === 'string' && msg.includes('already exists')) {
         toast('Profile already exists — set up your payouts.', { icon: 'ℹ️' });
-        goTo(12, 'forward');
+        goTo(13, 'forward');
       } else {
         toast.error('Submission failed, please try again');
       }
@@ -1434,8 +1665,8 @@ export function OnboardingWizard() {
     }
   };
 
-  const isReview    = step === 10;
-  const isPayout    = step === 12;
+  const isReview    = step === 11;
+  const isPayout    = step === 13;
   const isFullBleed = step === 8;
   const progress  = step === 0 ? 0 : Math.round((step / (TOTAL_STEPS - 1)) * 100);
 
@@ -1509,9 +1740,10 @@ export function OnboardingWizard() {
               {step === 6  && <StepServices data={data} onChange={update} />}
               {step === 7  && <StepRate data={data} onChange={update} />}
               {step === 9  && <StepAvailability data={data} onChange={update} />}
-              {step === 10 && <StepReview data={data} submitting={submitting} onSubmit={handleSubmit} />}
-              {step === 11 && <StepIdentity data={data} onChange={update} />}
-              {step === 12 && (
+              {step === 10 && <StepAgreement data={data} onChange={update} />}
+              {step === 11 && <StepReview data={data} submitting={submitting} onSubmit={handleSubmit} />}
+              {step === 12 && <StepIdentity data={data} onChange={update} />}
+              {step === 13 && (
                 <StepPayout
                   onDone={() => navigate('/companion/dashboard', { replace: true })}
                   onSkip={() => navigate('/companion/dashboard', { replace: true })}
@@ -1535,7 +1767,7 @@ export function OnboardingWizard() {
                 Continue <IconArrowRight size={16} />
               </button>
 
-              {(step === 2 || step === 3 || step === 4 || step === 5 || step === 9 || step === 11) && (
+              {(step === 2 || step === 3 || step === 4 || step === 5 || step === 9 || step === 12) && (
                 <button onClick={handleNext}
                   className="w-full text-center text-sm text-muted mt-2.5 hover:text-body transition-colors py-1">
                   Skip for now
