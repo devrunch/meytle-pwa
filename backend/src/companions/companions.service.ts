@@ -48,7 +48,7 @@ export class CompanionsService {
     }
   }
 
-  async createProfile(userId: string, dto: CreateCompanionProfileDto): Promise<CompanionProfile> {
+  async createProfile(userId: string, dto: CreateCompanionProfileDto, clientIp?: string | null): Promise<CompanionProfile> {
     const existing = await this.profiles.findOne({ where: { userId } });
     if (existing) throw new ConflictException('Companion profile already exists');
 
@@ -63,6 +63,8 @@ export class CompanionsService {
         profilePhotoUrl: dto.profilePhotoUrl ?? null,
         hourlyRatePaisa: dto.hourlyRatePaisa,
         serviceAreaRadiusKm: dto.serviceAreaRadiusKm ?? 50,
+        agreedToTermsAt: new Date(),
+        agreementIp: clientIp ?? null,
       });
       await em.save(p);
 

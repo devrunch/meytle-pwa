@@ -28,6 +28,7 @@ import { AdminCompanions } from './pages/admin/AdminCompanions';
 import { AdminCompanionDetail } from './pages/admin/AdminCompanionDetail';
 import { AdminBookings } from './pages/admin/AdminBookings';
 import { AdminBookingDetail } from './pages/admin/AdminBookingDetail';
+import { TermsPage } from './pages/TermsPage';
 import { useAuthStore } from './store/authStore';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
@@ -99,6 +100,7 @@ export default function App() {
           </Route>
         </Route>
 
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

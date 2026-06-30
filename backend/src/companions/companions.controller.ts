@@ -7,8 +7,10 @@ import {
   Patch,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { CompanionsService } from './companions.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -41,8 +43,9 @@ export class CompanionsController {
   // IMPORTANT: all me/... routes must come before :id/... routes
   @Post('me')
   @UseGuards(JwtAuthGuard)
-  createProfile(@CurrentUser() user: User, @Body() dto: CreateCompanionProfileDto) {
-    return this.companionsService.createProfile(user.id, dto);
+  createProfile(@CurrentUser() user: User, @Body() dto: CreateCompanionProfileDto, @Req() req: Request) {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip ?? null;
+    return this.companionsService.createProfile(user.id, dto, ip);
   }
 
   @Get('me/profile')

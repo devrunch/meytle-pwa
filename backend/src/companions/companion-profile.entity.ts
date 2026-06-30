@@ -106,6 +106,12 @@ export class CompanionProfile {
   @OneToMany(() => CompanionAvailability, (a) => a.companion, { eager: false })
   availability: CompanionAvailability[];
 
+  @Column({ name: 'agreed_to_terms_at', type: 'timestamptz', nullable: true })
+  agreedToTermsAt: Date | null;
+
+  @Column({ name: 'agreement_ip', nullable: true })
+  agreementIp: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
